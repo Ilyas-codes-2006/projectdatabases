@@ -1,6 +1,6 @@
 server {
     listen 80;
-    server_name 0.0.0.0 team[x].ua-ppdb.me;
+    server_name 34.38.183.107 team5.ua-ppdb.com;
 
     # Frontend (Vite build output)
     root /home/app/projectdatabases/project/frontend/dist;
