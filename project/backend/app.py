@@ -1,25 +1,19 @@
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify
 from config import config_data as config
-from flask_sqlalchemy import SQLAlchemy
-import psycopg
+from db import init_db
 
-DEBUG = False
-HOST = "127.0.0.1" if DEBUG else "0.0.0.0"
-
-# Initialize the Flask app
 app = Flask(__name__)
+
+with app.app_context():
+    init_db()
 
 @app.get("/")
 def root():
-    return {"status": "backend ok"}
-
+    return {"status": "MatchUp backend ok"}
 
 @app.get("/api/health")
 def health():
     return jsonify({"status": "ok"})
 
-##################
-# RUN DEV SERVER #
-##################
 if __name__ == "__main__":
-    app.run(HOST, debug=DEBUG)
+    app.run("0.0.0.0", debug=config['debug'])

@@ -1,0 +1,93 @@
+import psycopg
+from config import config_data as config
+
+def get_conn():
+    return psycopg.connect(config['db_connstr'])
+
+def init_db():
+    schema = """
+    CREATE TABLE IF NOT EXISTS users (
+        id            SERIAL PRIMARY KEY,
+        username      VARCHAR(50)  NOT NULL UNIQUE,
+        email         VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        is_admin      BOOLEAN      NOT NULL DEFAULT FALSE,
+        elo           INTEGER      NOT NULL DEFAULT 1200,
+        created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS clubs (
+        id         SERIAL PRIMARY KEY,
+        name       VARCHAR(100) NOT NULL UNIQUE,
+        city       VARCHAR(100),
+        created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS members (
+        user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        club_id   INTEGER NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+        is_admin  BOOLEAN NOT NULL DEFAULT FALSE,
+        joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (user_id, club_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS sports (
+        id        SERIAL PRIMARY KEY,
+        name      VARCHAR(50) NOT NULL UNIQUE,
+        team_size INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ladders (
+        id                   SERIAL PRIMARY KEY,
+        club_id              INTEGER NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+        sport_id             INTEGER NOT NULL REFERENCES sports(id),
+        name                 VARCHAR(100) NOT NULL,
+        challenge_limit      INTEGER NOT NULL DEFAULT 3,
+        scheduling_freq_days INTEGER NOT NULL DEFAULT 14,
+        k_factor             INTEGER NOT NULL DEFAULT 32,
+        active               BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS teams (
+        id         SERIAL PRIMARY KEY,
+        ladder_id  INTEGER NOT NULL REFERENCES ladders(id) ON DELETE CASCADE,
+        name       VARCHAR(100) NOT NULL,
+        rating     INTEGER NOT NULL DEFAULT 1200,
+        rank       INTEGER,
+        active     BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS team_members (
+        team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        PRIMARY KEY (team_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS team_availability (
+        team_id     INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+        PRIMARY KEY (team_id, day_of_week)
+    );
+
+    CREATE TABLE IF NOT EXISTS matches (
+        id             SERIAL PRIMARY KEY,
+        ladder_id      INTEGER NOT NULL REFERENCES ladders(id) ON DELETE CASCADE,
+        home_team_id   INTEGER NOT NULL REFERENCES teams(id),
+        away_team_id   INTEGER NOT NULL REFERENCES teams(id),
+        scheduled_at   TIMESTAMPTZ,
+        status         VARCHAR(20) NOT NULL DEFAULT 'pending'
+                           CHECK (status IN ('pending','confirmed','completed','declined','disputed')),
+        winner_team_id INTEGER REFERENCES teams(id),
+        score_home     VARCHAR(50),
+        score_away     VARCHAR(50),
+        reported_by    INTEGER REFERENCES users(id),
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(schema)
+        conn.commit()
+    print("[db] Schema initialized.")
