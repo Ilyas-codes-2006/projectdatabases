@@ -117,7 +117,7 @@ def apply_match_result(match_id: int):
 
             home_id, away_id, winner_id, home_rating, away_rating, ladder_id = row
 
-            # A winner is required for the simple model (no draws)
+            # No draws
             if winner_id is None:
                 return
 
