@@ -8,12 +8,17 @@ def init_db():
     schema = """
     CREATE TABLE IF NOT EXISTS users (
         id            SERIAL PRIMARY KEY,
-        username      VARCHAR(50)  NOT NULL UNIQUE,
+        first_name    VARCHAR(100) NOT NULL,
+        last_name     VARCHAR(100) NOT NULL,
         email         VARCHAR(255) NOT NULL UNIQUE,
+        age           INTEGER NOT NULL,
+        sport         VARCHAR(20) NOT NULL CHECK (sport IN ('tennis', 'padel', 'both')),
+        skill_level   VARCHAR(20) NOT NULL CHECK (skill_level IN ('beginner', 'intermediate', 'advanced', 'competitive', 'professional')),
+        club          VARCHAR(100) NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
-        is_admin      BOOLEAN      NOT NULL DEFAULT FALSE,
-        elo           INTEGER      NOT NULL DEFAULT 1200,
-        created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+        is_admin      BOOLEAN NOT NULL DEFAULT FALSE,
+        elo           INTEGER NOT NULL DEFAULT 1200,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS clubs (
