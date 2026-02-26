@@ -2,7 +2,10 @@
 
 > **Programming Project Databases** · University of Antwerp · Team 5
 
----
+# Run for now:
+python3 -m pip install -r requirements.txt
+# To run the project, use:
+See the folders backend and frontend and open 2 terminals, one for each. In the backend terminal, run:
 
 ## 1. Project Overview
 
