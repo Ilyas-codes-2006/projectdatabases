@@ -1,4 +1,4 @@
-import {useState} from 'react'
+import {useState, useEffect} from 'react'
 import './App.css'
 import courtsBg from './assets/court.jpeg'
 
@@ -39,6 +39,15 @@ export default function App() {
   const [loggedInUser, setLoggedInUser] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    const name = localStorage.getItem('userName')
+    if (token && name) {
+      setLoggedInUser(name)
+    }
+  }, [])
+
   const clearMessage = () => setMessage(null)
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -53,6 +62,8 @@ export default function App() {
       })
       const data = await res.json()
       if (res.ok) {
+        localStorage.setItem('token', data.token)
+        localStorage.setItem('userName', data.name)
         setLoggedInUser(data.name)
         setView('home')
         setMessage({ text: `Welcome back, ${data.name}!`, type: 'success' })
@@ -99,6 +110,8 @@ export default function App() {
   }
 
   const handleLogout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('userName')
     setLoggedInUser(null)
     setMessage({ text: 'You have been logged out.', type: 'success' })
   }

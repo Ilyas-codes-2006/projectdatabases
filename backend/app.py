@@ -1,10 +1,12 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from config import config_data as config
 from db import init_db, get_conn, apply_match_result
-from auth import register_user
+from auth import register_user, login_user, token_required
 
 def create_app(test_config=None):
     app = Flask(__name__)
+    CORS(app)
 
     app.config.from_mapping(
         DEBUG=config["debug"],
@@ -25,9 +27,22 @@ def create_app(test_config=None):
     def health():
         return jsonify({"status": "ok"})
 
-    @app.route("/api/login", methods=["POST"])
+    @app.route("/api/auth/login", methods=["POST"])
     def login():
-        pass
+        data = request.get_json()
+        if not data or 'email' not in data or 'password' not in data:
+            return jsonify({"error": "Email and password are required"}), 400
+
+        result = login_user(data['email'], data['password'])
+
+        if result['success']:
+            return jsonify({
+                "token": result['token'],
+                "name": result['name'],
+                "user_id": result['user_id'],
+            }), 200
+        else:
+            return jsonify({"error": result['error']}), 401
 
     @app.route("/api/auth/register", methods=["POST"])
     def register():
@@ -59,6 +74,7 @@ def create_app(test_config=None):
             return jsonify({"error": result['error']}), 400
 
     @app.post("/api/matches/<int:match_id>/result")
+    @token_required
     def report_match_result(match_id):
         data = request.get_json()
         if not data or "winner_team_id" not in data:
