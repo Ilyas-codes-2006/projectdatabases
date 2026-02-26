@@ -15,6 +15,7 @@ venv/
 __pycache__/
 *.pyc
 .DS_Store
+node_modules/
 
 # CLion
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

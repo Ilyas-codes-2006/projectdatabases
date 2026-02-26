@@ -83,12 +83,12 @@ Users ── Members ──> Clubs
 
 ```bash
 git clone <repository-url>
-cd projectdatabases/project
+cd projectdatabases
 ```
 
 ### 4.2 Configure environment variables
 
-Create a `.env` file inside `project/backend/`:
+Create a `.env` file inside `backend/`:
 
 ```dotenv
 DB_USER=app
@@ -151,22 +151,21 @@ The deployment uses **Nginx** as a reverse proxy serving the Vite production bui
 
 ```
 projectdatabases/
-├── project/
-│   ├── backend/            # Flask API
-│   │   ├── app.py          # Application entry-point & routes
-│   │   ├── config.py       # Environment-based configuration
-│   │   ├── db.py           # Database schema & helpers
-│   │   ├── elo.py          # ELO rating calculation
-│   │   ├── wsgi.py         # Gunicorn WSGI entry-point
-│   │   └── requirements.txt
-│   ├── frontend/           # React + TypeScript SPA
-│   │   ├── src/
-│   │   ├── vite.config.ts
-│   │   └── package.json
-│   ├── nginx/              # Nginx site configuration
-│   │   └── webapp
-│   └── service/            # systemd service unit
-│       └── webapp.service
+├── backend/                # Flask API
+│   ├── app.py              # Application entry-point & routes
+│   ├── config.py           # Environment-based configuration
+│   ├── db.py               # Database schema & helpers
+│   ├── elo.py              # ELO rating calculation
+│   ├── wsgi.py             # Gunicorn WSGI entry-point
+│   └── requirements.txt
+├── frontend/               # React + TypeScript SPA
+│   ├── src/
+│   ├── vite.config.ts
+│   └── package.json
+├── nginx/                  # Nginx site configuration
+│   └── webapp
+├── service/                # systemd service unit
+│   └── webapp.service
 └── README.md
 ```
 
