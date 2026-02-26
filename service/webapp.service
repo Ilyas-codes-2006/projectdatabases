@@ -6,12 +6,12 @@ After=network.target
 User=app
 Group=www-data
 
-WorkingDirectory=/home/app/projectdatabases/project/backend
-Environment="PATH=/home/app/projectdatabases/project/backend/venv/bin"
+WorkingDirectory=/home/app/projectdatabases/backend
+Environment="PATH=/home/app/projectdatabases/backend/venv/bin"
 
-ExecStart=/home/app/projectdatabases/project/backend/venv/bin/gunicorn \
+ExecStart=/home/app/projectdatabases/backend/venv/bin/gunicorn \
   --workers 3 \
-  --bind unix:/home/app/projectdatabases/project/backend/webapp.sock \
+  --bind unix:/home/app/projectdatabases/backend/webapp.sock \
   -m 007 \
   wsgi:app
 
