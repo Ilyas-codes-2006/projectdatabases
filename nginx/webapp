@@ -3,13 +3,13 @@ server {
     server_name 34.38.183.107 team5.ua-ppdb.com;
 
     # Frontend (Vite build output)
-    root /home/app/projectdatabases/project/frontend/dist;
+    root /home/app/projectdatabases/frontend/dist;
     index index.html;
 
     # API -> Flask (Gunicorn via unix socket)
     location /api/ {
         include proxy_params;
-        proxy_pass http://unix:/home/app/projectdatabases/project/backend/webapp.sock:;
+        proxy_pass http://unix:/home/app/projectdatabases/backend/webapp.sock:;
     }
 
     # SPA fallback

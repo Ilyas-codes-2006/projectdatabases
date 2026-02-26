@@ -43,5 +43,8 @@ jobs:
           script: |
             # Als je ook een backend hebt die npm install nodig heeft:
             # cd ~/projectdatabases && npm install --production
+            cd ~/projectdatabases/backend
+            source venv/bin/activate
+            pip install -r requirements.txt
             sudo systemctl restart nginx
             sudo systemctl restart webapp
