@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from config import config_data as config
-from db import init_db, get_conn, apply_match_result
+from db import db
 from auth import register_user, login_user, token_required
 
 def create_app(test_config=None):
@@ -12,12 +12,15 @@ def create_app(test_config=None):
         DEBUG=config["debug"],
         DB_CONNSTR=config["db_connstr"],
     )
+    app.config["SQLALCHEMY_DATABASE_URI"] = config["db_connstr"]
 
     if test_config:
         app.config.update(test_config)
 
+    db.init_app(app)
+
     with app.app_context():
-        init_db()
+        db.create_all()
 
     @app.get("/")
     def root():

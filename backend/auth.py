@@ -7,34 +7,37 @@ from flask import request, jsonify, g
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import config_data as config
-from db import get_conn
+from db import db
 
 
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 
-def register_user(first_name, last_name, email, age, sport, skill_level, club, password):
-    """Register a new user with hashed password."""
+def register_user(last_name, first_name, password, bio, is_admin, date_of_birth, email):
     password_hash = generate_password_hash(password)
+    
+    if User.query.filter_by(email=email).first():
+        return {'success': False, 'error': 'Email already registered'}
 
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            try:
-                cur.execute(
-                    """
-                    INSERT INTO users (first_name, last_name, email, age, sport, skill_level, club, password_hash)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                    """,
-                    (first_name, last_name, email, age, sport, skill_level, club, password_hash))
-                user_id = cur.fetchone()[0]
-                conn.commit()
-                return {'success': True, 'user_id': user_id}
-            except psycopg.errors.UniqueViolation:
-                return {'success': False, 'error': 'Email already registered'}
-            except Exception as e:
-                return {'success': False, 'error': str(e)}
+    new_user = User(
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        date_of_birth=date_of_birth,
+        bio=bio,
+        is_admin=is_admin,
+        created_at=datetime.now(),
+        password=password_hash
+    )
+
+    try:
+        db.session.add(new_user)
+        db.session.commit()
+        return {'success': True, 'user_id': new_user.id}
+    except Exception as e:
+        db.session.rollback()
+        return {'success': False, 'error': str(e)}
 
 
 # ---------------------------------------------------------------------------
@@ -54,29 +57,20 @@ def _generate_token(user_id: int, email: str, first_name: str) -> str:
 
 
 def login_user(email: str, password: str) -> dict:
-    """Verify credentials and return a JWT on success."""
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id, first_name, last_name, password_hash FROM users WHERE email = %s",
-                (email,),
-            )
-            row = cur.fetchone()
+    # Haal de gebruiker op via het model
+    user = User.query.filter_by(email=email).first()
 
-    if row is None:
+    # Gebruiker niet gevonden of ongeldig wachtwoord
+    if user is None or not check_password_hash(user.password_hash, password):
         return {'success': False, 'error': 'Invalid email or password'}
 
-    user_id, first_name, last_name, password_hash = row
-
-    if not check_password_hash(password_hash, password):
-        return {'success': False, 'error': 'Invalid email or password'}
-
-    token = _generate_token(user_id, email, first_name)
+    # _generate_token blijft hetzelfde
+    token = _generate_token(user.id, user.email, user.first_name)
     return {
         'success': True,
         'token': token,
-        'name': f"{first_name} {last_name}",
-        'user_id': user_id,
+        'name': f"{user.first_name} {user.last_name}",
+        'user_id': user.id,
     }
 
 
