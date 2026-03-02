@@ -51,7 +51,7 @@ def create_app(test_config=None):
     def register():
         try:
             data = request.json
-            required_fields = ['first_name', 'last_name', 'email', 'age', 'sport', 'skill_level', 'club', 'password']
+            required_fields = ['first_name', 'last_name', 'email', 'date_of_birth', 'password']
             if not data:
                 return jsonify({"error": "Invalid JSON"}), 400
             for field in required_fields:
@@ -61,14 +61,13 @@ def create_app(test_config=None):
             return jsonify({"error": "Invalid request format"}), 400
 
         result = register_user(
-            first_name=data['first_name'],
             last_name=data['last_name'],
-            email=data['email'],
-            age=data['age'],
-            sport=data['sport'],
-            skill_level=data['skill_level'],
-            club=data['club'],
-            password=data['password']
+            first_name=data['first_name'],
+            password=data['password'],
+            bio=data.get('bio', ''),
+            is_admin=data.get('is_admin', False),
+            date_of_birth=data['date_of_birth'],
+            email=data['email']
         )
 
         if result['success']:
@@ -76,47 +75,44 @@ def create_app(test_config=None):
         else:
             return jsonify({"error": result['error']}), 400
 
-    @app.post("/api/matches/<int:match_id>/result")
+    @app.route("/api/matches/<int:match_id>/result", methods=["POST"])
     @token_required
-    def report_match_result(match_id):
+    def update_match_result(match_id):
         data = request.get_json()
-        if not data or "winner_team_id" not in data:
-            return jsonify({"error": "winner_team_id is required"}), 400
+        
+        match = db.session.get(Match, match_id)
 
-        winner_team_id = data["winner_team_id"]
-        score_home = data.get("score_home")
-        score_away = data.get("score_away")
+        if match is None:
+            return jsonify({"error": "Match not found"}), 404
 
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT home_team_id, away_team_id
-                    FROM   matches
-                    WHERE  id = %s AND status IN ('pending', 'confirmed')
-                """, (match_id,))
-                match = cur.fetchone()
+        home_score = data.get("score_home")
+        away_score = data.get("score_away")
+        
+        winner_team_id = data.get("winner_team_id")
+        if winner_team_id and winner_team_id not in (match.home_team_id, match.away_team_id):
+            return jsonify({"error": "winner_team_id must be the home or away team"}), 400
 
-                if match is None:
-                    return jsonify({"error": "Match not found or already completed"}), 404
+        try:
+            new_score = Score(
+                set=1,
+                home_score=home_score,
+                away_score=away_score
+            )
+            db.session.add(new_score)
+            db.session.flush()
+            match.result = new_score.id
+            
+            if "user_id" in data:
+                match.reported_by = data["user_id"]
 
-                home_team_id, away_team_id = match
+            db.session.commit()
 
-                if winner_team_id not in (home_team_id, away_team_id):
-                    return jsonify({"error": "winner_team_id must be the home or away team"}), 400
+            # apply_match_result(match_id)
 
-                cur.execute("""
-                    UPDATE matches
-                    SET    status = 'completed',
-                           winner_team_id = %s,
-                           score_home = %s,
-                           score_away = %s
-                    WHERE  id = %s
-                """, (winner_team_id, score_home, score_away, match_id))
+            return jsonify({"message": "Match result recorded, score added"}), 200
 
-            conn.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
-        apply_match_result(match_id)
-
-        return jsonify({"message": "Match result recorded, ratings updated"}), 200
-
-    return app  # ← niet vergeten
+    return app
