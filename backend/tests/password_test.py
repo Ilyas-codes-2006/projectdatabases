@@ -46,12 +46,12 @@ def get_reset_token(email: str) -> str:
 
 
 def expire_token(token: str):
-    """Zet de vervaldatum naar het verleden (simuleer verlopen token)."""
+    """Zet de vervaldatum van een token naar het verleden (simuleer verlopen token)."""
     with psycopg.connect(TEST_DB_CONNSTR) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE password_reset_tokens SET expires_at = %s WHERE token = %s",
-                (datetime.now(timezone.utc) - timedelta(minutes=10), token)
+                "UPDATE password_reset_tokens SET expires_at = NOW() - INTERVAL '1 hour' WHERE token = %s",
+                (token,)
             )
         conn.commit()
 

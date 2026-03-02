@@ -222,7 +222,8 @@ def reset_password_with_token(token: str, new_password: str) -> dict:
         return {'success': False, 'error': 'Deze resetlink is al gebruikt. Vraag een nieuwe aan.'}
 
     # Check: token verlopen?
-    if datetime.now(timezone.utc) > expires_at.replace(tzinfo=timezone.utc):
+    expires_at_aware = expires_at.replace(tzinfo=timezone.utc) if expires_at.tzinfo is None else expires_at
+    if datetime.now(timezone.utc) > expires_at_aware:
         return {'success': False, 'error': 'Deze resetlink is verlopen. Vraag een nieuwe aan.'}
 
     # Alles ok — sla het nieuwe gehashte wachtwoord op
