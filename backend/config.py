@@ -24,12 +24,12 @@ config_data['debug']    = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
 # Email settings
 config_data['mail_server']   = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
 config_data['mail_port']     = int(os.getenv('MAIL_PORT', '587'))
-config_data['mail_username'] = os.getenv('MAIL_USERNAME', '')
-config_data['mail_password'] = os.getenv('MAIL_PASSWORD', '')
-config_data['mail_sender']   = os.getenv('MAIL_SENDER', 'noreply@matchup.com')
+config_data['mail_username'] = os.getenv('MAIL_USERNAME', 'matchup.noreply@gmail.com')
+config_data['mail_password'] = os.getenv('MAIL_PASSWORD')
+config_data['mail_sender']   = os.getenv('MAIL_SENDER', 'matchup.noreply@gmail.com')
 
 # Frontend URL (used in reset email link)
-config_data['frontend_url'] = os.getenv('FRONTEND_URL', 'http://team5.ua-ppdb.com/')
+config_data['frontend_url'] = os.getenv('FRONTEND_URL', 'http://localhost:5173/')
 
 # Build connection string
 config_data['db_connstr'] = (
