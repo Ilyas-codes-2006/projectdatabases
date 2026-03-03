@@ -1,9 +1,12 @@
 import {useState, useEffect} from 'react'
 import './App.css'
 import courtsBg from './assets/court.jpeg'
+import NotFound from "./pages/notfound"
+import ServerError from './pages/servererror';
+import BadGateway from './pages/badgateway';
 
 
-type View = 'home' | 'login' | 'register'
+type View = 'home' | 'login' | 'register' | 'notfound' | 'servererror' | 'badgateway';
 
 interface User {
   first_name: string
@@ -68,10 +71,15 @@ export default function App() {
         setView('home')
         setMessage({ text: `Welcome back, ${data.name}!`, type: 'success' })
       } else {
+        if (res.status === 404) return setView('notfound')
+        if (res.status === 500) return setView('servererror')
+        if (res.status === 502 || res.status === 503) return setView('badgateway')
+
+        const data = await res.json();
         setMessage({ text: data.error || 'Login failed', type: 'error' })
       }
     } catch {
-      setMessage({ text: 'Could not connect to server', type: 'error' })
+      setView("badgateway")
     } finally {
       setLoading(false)
     }
@@ -330,6 +338,9 @@ export default function App() {
           </div>
         </div>
       )}
+      {view === 'notfound' && <NotFound />}
+      {view === 'servererror' && <ServerError />}
+      {view === 'badgateway' && <BadGateway />}
     </div>
   )
 }
