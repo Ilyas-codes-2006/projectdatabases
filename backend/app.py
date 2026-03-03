@@ -1,8 +1,10 @@
 from flask import Flask, jsonify, request
+import jwt
 from flask_cors import CORS
 from config import config_data as config
 from db import init_db, get_conn, apply_match_result
 from auth import register_user, login_user, token_required
+from teams import show_teams, create_team, join_team
 
 def create_app(test_config=None):
     app = Flask(__name__)
@@ -19,6 +21,18 @@ def create_app(test_config=None):
     with app.app_context():
         init_db()
 
+    @app.get("/api/debug-token")
+    def debug_token():
+        header = request.headers.get('Authorization', 'GEEN HEADER')
+        print("HEADER:", header)
+        if header == 'GEEN HEADER':
+            return jsonify({"error": "geen header"}), 400
+        token = header.replace('Bearer ', '')
+        try:
+            payload = jwt.decode(token, config['jwt_secret'], algorithms=[config['jwt_algorithm']])
+            return jsonify({"success": True, "payload": payload})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 401
     @app.get("/")
     def root():
         return {"status": "MatchUp backend ok"}
@@ -115,5 +129,49 @@ def create_app(test_config=None):
         apply_match_result(match_id)
 
         return jsonify({"message": "Match result recorded, ratings updated"}), 200
+
+    @app.get("/api/teams")
+    def get_teams():
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token:
+            return jsonify({"error": "Missing token"}), 401
+        try:
+            payload = jwt.decode(token, config['jwt_secret'], algorithms=[config['jwt_algorithm']])
+        except Exception:
+            return jsonify({"error": "Invalid token"}), 401
+        return jsonify(show_teams())
+
+    @app.post("/api/teams")
+    def new_team():
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token:
+            return jsonify({"error": "Missing token"}), 401
+        try:
+            payload = jwt.decode(token, config['jwt_secret'], algorithms=[config['jwt_algorithm']])
+        except Exception:
+            return jsonify({"error": "Invalid token"}), 401
+        data = request.get_json()
+        if not data or 'team_name' not in data:
+            return jsonify({"error": "team_name is required"}), 400
+        user_id = payload['sub']
+        result = create_team(user_id, data['team_name'])
+        if result['success']:
+            return jsonify(result), 201
+        return jsonify(result), 400
+
+    @app.post("/api/teams/<int:team_id>/join")
+    def join_team_route(team_id):
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token:
+            return jsonify({"error": "Missing token"}), 401
+        try:
+            payload = jwt.decode(token, config['jwt_secret'], algorithms=[config['jwt_algorithm']])
+        except Exception:
+            return jsonify({"error": "Invalid token"}), 401
+        user_id = payload['sub']
+        result = join_team(user_id, team_id)
+        if result['success']:
+            return jsonify(result), 200
+        return jsonify(result), 400
 
     return app  # ← niet vergeten
