@@ -1,9 +1,9 @@
-import {useState, useEffect} from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import courtsBg from './assets/court.jpeg'
 
-
-type View = 'home' | 'login' | 'register'
+// View types uitgebreid met de twee nieuwe schermen
+type View = 'home' | 'login' | 'register' | 'forgot-password' | 'reset-password'
 
 interface User {
   first_name: string
@@ -39,17 +39,40 @@ export default function App() {
   const [loggedInUser, setLoggedInUser] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Wachtwoord vergeten
+  const [forgotEmail, setForgotEmail] = useState('')
+
+  // Wachtwoord resetten
+  const [resetToken, setResetToken] = useState('')
+  const [resetPassword, setResetPassword] = useState('')
+  const [resetConfirm, setResetConfirm] = useState('')
+
   // Restore session from localStorage on mount
+  // Controleer ook of er een reset-token in de URL staat
   useEffect(() => {
     const token = localStorage.getItem('token')
     const name = localStorage.getItem('userName')
     if (token && name) {
       setLoggedInUser(name)
     }
+
+    // Detecteer ?token=...&view=reset-password in de URL
+    const params = new URLSearchParams(window.location.search)
+    const urlToken = params.get('token')
+    const urlView = params.get('view')
+    if (urlToken && urlView === 'reset-password') {
+      setResetToken(urlToken)
+      setView('reset-password')
+      // Verwijder de token uit de URL-balk (netter en veiliger)
+      window.history.replaceState({}, '', '/')
+    }
   }, [])
 
   const clearMessage = () => setMessage(null)
 
+  // ---------------------------------------------------------------------------
+  // Login
+  // ---------------------------------------------------------------------------
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -66,26 +89,29 @@ export default function App() {
         localStorage.setItem('userName', data.name)
         setLoggedInUser(data.name)
         setView('home')
-        setMessage({ text: `Welcome back, ${data.name}!`, type: 'success' })
+        setMessage({ text: `Welkom terug, ${data.name}!`, type: 'success' })
       } else {
-        setMessage({ text: data.error || 'Login failed', type: 'error' })
+        setMessage({ text: data.error || 'Inloggen mislukt', type: 'error' })
       }
     } catch {
-      setMessage({ text: 'Could not connect to server', type: 'error' })
+      setMessage({ text: 'Kan geen verbinding maken met de server', type: 'error' })
     } finally {
       setLoading(false)
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Register
+  // ---------------------------------------------------------------------------
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     clearMessage()
     if (registerData.password !== registerData.confirm_password) {
-      setMessage({ text: 'Passwords do not match', type: 'error' })
+      setMessage({ text: 'Wachtwoorden komen niet overeen', type: 'error' })
       return
     }
     if (registerData.password.length < 8) {
-      setMessage({ text: 'Password must be at least 8 characters', type: 'error' })
+      setMessage({ text: 'Wachtwoord moet minimaal 8 tekens bevatten', type: 'error' })
       return
     }
     setLoading(true)
@@ -97,23 +123,90 @@ export default function App() {
       })
       const data = await res.json()
       if (res.ok) {
-        setMessage({ text: 'Account created! You can now log in.', type: 'success' })
+        setMessage({ text: 'Account aangemaakt! Je kunt nu inloggen.', type: 'success' })
         setView('login')
       } else {
-        setMessage({ text: data.error || 'Registration failed', type: 'error' })
+        setMessage({ text: data.error || 'Registratie mislukt', type: 'error' })
       }
     } catch {
-      setMessage({ text: 'Could not connect to server', type: 'error' })
+      setMessage({ text: 'Kan geen verbinding maken met de server', type: 'error' })
     } finally {
       setLoading(false)
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Logout
+  // ---------------------------------------------------------------------------
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('userName')
     setLoggedInUser(null)
-    setMessage({ text: 'You have been logged out.', type: 'success' })
+    setMessage({ text: 'Je bent uitgelogd.', type: 'success' })
+  }
+
+  // ---------------------------------------------------------------------------
+  // Wachtwoord vergeten — stap 1: e-mail invullen
+  // ---------------------------------------------------------------------------
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    clearMessage()
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail }),
+      })
+      const data = await res.json()
+      // Toon altijd de server-boodschap (die is altijd neutraal)
+      setMessage({ text: data.message || data.error, type: res.ok ? 'success' : 'error' })
+      if (res.ok) {
+        setForgotEmail('')
+      }
+    } catch {
+      setMessage({ text: 'Kan geen verbinding maken met de server', type: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Wachtwoord resetten — stap 2: nieuw wachtwoord instellen
+  // ---------------------------------------------------------------------------
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    clearMessage()
+    if (resetPassword !== resetConfirm) {
+      setMessage({ text: 'Wachtwoorden komen niet overeen', type: 'error' })
+      return
+    }
+    if (resetPassword.length < 8) {
+      setMessage({ text: 'Wachtwoord moet minimaal 8 tekens bevatten', type: 'error' })
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken, new_password: resetPassword }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setMessage({ text: data.message, type: 'success' })
+        setResetPassword('')
+        setResetConfirm('')
+        setResetToken('')
+        setView('login')
+      } else {
+        setMessage({ text: data.error, type: 'error' })
+      }
+    } catch {
+      setMessage({ text: 'Kan geen verbinding maken met de server', type: 'error' })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -147,7 +240,9 @@ export default function App() {
         </div>
       )}
 
-      {/* Home View */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Home View                                                           */}
+      {/* ------------------------------------------------------------------ */}
       {view === 'home' && (
         <main className="hero">
           <div className="hero-bg" style={{ backgroundImage: `url(${courtsBg})` }}></div>
@@ -193,67 +288,165 @@ export default function App() {
         </main>
       )}
 
-      {/* Login View */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Login View                                                          */}
+      {/* ------------------------------------------------------------------ */}
       {view === 'login' && (
         <div className="auth-wrapper">
           <div className="auth-card">
             <div className="auth-header">
               <span className="auth-icon">🎾</span>
-              <h2>Welcome back</h2>
-              <p>Sign in to your club account</p>
+              <h2>Welkom terug</h2>
+              <p>Log in op je clubaccount</p>
             </div>
             <form onSubmit={handleLogin} className="auth-form">
               <div className="form-group">
-                <label>Email address</label>
+                <label>E-mailadres</label>
                 <input
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder="jij@voorbeeld.com"
                   required
                   value={loginData.email}
                   onChange={e => setLoginData({ ...loginData, email: e.target.value })}
                 />
               </div>
               <div className="form-group">
-                <label>Password</label>
+                <label>Wachtwoord</label>
                 <input
                   type="password"
-                  placeholder="Your password"
+                  placeholder="Jouw wachtwoord"
                   required
                   value={loginData.password}
                   onChange={e => setLoginData({ ...loginData, password: e.target.value })}
                 />
               </div>
               <button type="submit" className="btn-submit" disabled={loading}>
-                {loading ? 'Signing in…' : 'Sign In'}
+                {loading ? 'Inloggen…' : 'Inloggen'}
               </button>
             </form>
+
+            {/* Wachtwoord vergeten link */}
             <p className="auth-switch">
-              No account yet?{' '}
-              <button onClick={() => { setView('register'); clearMessage() }}>Create one</button>
+              <button onClick={() => { setView('forgot-password'); clearMessage() }}>
+                Wachtwoord vergeten?
+              </button>
+            </p>
+
+            <p className="auth-switch">
+              Nog geen account?{' '}
+              <button onClick={() => { setView('register'); clearMessage() }}>Maak er een aan</button>
             </p>
           </div>
         </div>
       )}
 
-      {/* Register View */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Wachtwoord vergeten View                                            */}
+      {/* ------------------------------------------------------------------ */}
+      {view === 'forgot-password' && (
+        <div className="auth-wrapper">
+          <div className="auth-card">
+            <div className="auth-header">
+              <span className="auth-icon">🔑</span>
+              <h2>Wachtwoord vergeten</h2>
+              <p>Vul je e-mailadres in. Als het bij ons bekend is, sturen we je een resetlink.</p>
+            </div>
+            <form onSubmit={handleForgotPassword} className="auth-form">
+              <div className="form-group">
+                <label>E-mailadres</label>
+                <input
+                  type="email"
+                  placeholder="jij@voorbeeld.com"
+                  required
+                  value={forgotEmail}
+                  onChange={e => setForgotEmail(e.target.value)}
+                />
+              </div>
+              <button type="submit" className="btn-submit" disabled={loading}>
+                {loading ? 'Versturen…' : 'Stuur resetlink'}
+              </button>
+            </form>
+            <p className="auth-switch">
+              <button onClick={() => { setView('login'); clearMessage() }}>
+                ← Terug naar inloggen
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Wachtwoord resetten View (via link in e-mail)                       */}
+      {/* ------------------------------------------------------------------ */}
+      {view === 'reset-password' && (
+        <div className="auth-wrapper">
+          <div className="auth-card">
+            <div className="auth-header">
+              <span className="auth-icon">🔒</span>
+              <h2>Nieuw wachtwoord instellen</h2>
+              <p>Kies een sterk wachtwoord van minimaal 8 tekens.</p>
+            </div>
+            {resetToken ? (
+              <form onSubmit={handleResetPassword} className="auth-form">
+                <div className="form-group">
+                  <label>Nieuw wachtwoord</label>
+                  <input
+                    type="password"
+                    placeholder="Min. 8 tekens"
+                    required
+                    value={resetPassword}
+                    onChange={e => setResetPassword(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Bevestig wachtwoord</label>
+                  <input
+                    type="password"
+                    placeholder="Herhaal wachtwoord"
+                    required
+                    value={resetConfirm}
+                    onChange={e => setResetConfirm(e.target.value)}
+                  />
+                </div>
+                <button type="submit" className="btn-submit" disabled={loading}>
+                  {loading ? 'Opslaan…' : 'Wachtwoord instellen'}
+                </button>
+              </form>
+            ) : (
+              <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '1rem' }}>
+                Geen geldige resetlink gevonden. Vraag een nieuwe aan via "Wachtwoord vergeten".
+              </p>
+            )}
+            <p className="auth-switch">
+              <button onClick={() => { setView('login'); clearMessage() }}>
+                ← Terug naar inloggen
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Register View                                                       */}
+      {/* ------------------------------------------------------------------ */}
       {view === 'register' && (
         <div className="auth-wrapper">
           <div className="auth-card auth-card-wide">
             <div className="auth-header">
               <span className="auth-icon">🏅</span>
-              <h2>Join your club</h2>
-              <p>Create your player profile</p>
+              <h2>Word lid van je club</h2>
+              <p>Maak je spelersprofiel aan</p>
             </div>
             <form onSubmit={handleRegister} className="auth-form">
               <div className="form-row">
                 <div className="form-group">
-                  <label>First name</label>
+                  <label>Voornaam</label>
                   <input type="text" placeholder="Jan" required
                     value={registerData.first_name}
                     onChange={e => setRegisterData({ ...registerData, first_name: e.target.value })} />
                 </div>
                 <div className="form-group">
-                  <label>Last name</label>
+                  <label>Achternaam</label>
                   <input type="text" placeholder="Janssen" required
                     value={registerData.last_name}
                     onChange={e => setRegisterData({ ...registerData, last_name: e.target.value })} />
@@ -262,13 +455,13 @@ export default function App() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Email address</label>
-                  <input type="email" placeholder="jan@example.com" required
+                  <label>E-mailadres</label>
+                  <input type="email" placeholder="jan@voorbeeld.com" required
                     value={registerData.email}
                     onChange={e => setRegisterData({ ...registerData, email: e.target.value })} />
                 </div>
                 <div className="form-group">
-                  <label>Age</label>
+                  <label>Leeftijd</label>
                   <input type="number" placeholder="25" min="6" max="100" required
                     value={registerData.age}
                     onChange={e => setRegisterData({ ...registerData, age: e.target.value })} />
@@ -282,14 +475,14 @@ export default function App() {
                     onChange={e => setRegisterData({ ...registerData, sport: e.target.value })}>
                     <option value="tennis">Tennis</option>
                     <option value="padel">Padel</option>
-                    <option value="both">Both</option>
+                    <option value="both">Beide</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Skill level</label>
+                  <label>Niveau</label>
                   <select required value={registerData.skill_level}
                     onChange={e => setRegisterData({ ...registerData, skill_level: e.target.value })}>
-                    <option value="">Select level…</option>
+                    <option value="">Kies niveau…</option>
                     {SKILL_LEVELS.map(l => <option key={l} value={l.toLowerCase()}>{l}</option>)}
                   </select>
                 </div>
@@ -299,33 +492,33 @@ export default function App() {
                 <label>Club</label>
                 <select required value={registerData.club}
                   onChange={e => setRegisterData({ ...registerData, club: e.target.value })}>
-                  <option value="">Select your club…</option>
+                  <option value="">Kies je club…</option>
                   {CLUBS.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Password</label>
-                  <input type="password" placeholder="Min. 8 characters" required
+                  <label>Wachtwoord</label>
+                  <input type="password" placeholder="Min. 8 tekens" required
                     value={registerData.password}
                     onChange={e => setRegisterData({ ...registerData, password: e.target.value })} />
                 </div>
                 <div className="form-group">
-                  <label>Confirm password</label>
-                  <input type="password" placeholder="Repeat password" required
+                  <label>Bevestig wachtwoord</label>
+                  <input type="password" placeholder="Herhaal wachtwoord" required
                     value={registerData.confirm_password}
                     onChange={e => setRegisterData({ ...registerData, confirm_password: e.target.value })} />
                 </div>
               </div>
 
               <button type="submit" className="btn-submit" disabled={loading}>
-                {loading ? 'Creating account…' : 'Create Account'}
+                {loading ? 'Account aanmaken…' : 'Account aanmaken'}
               </button>
             </form>
             <p className="auth-switch">
-              Already have an account?{' '}
-              <button onClick={() => { setView('login'); clearMessage() }}>Sign in</button>
+              Al een account?{' '}
+              <button onClick={() => { setView('login'); clearMessage() }}>Inloggen</button>
             </p>
           </div>
         </div>
