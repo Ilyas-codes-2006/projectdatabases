@@ -92,6 +92,16 @@ def init_db():
         reported_by    INTEGER REFERENCES users(id),
         created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    -- Tabel voor wachtwoord-reset tokens
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id         SERIAL PRIMARY KEY,
+        user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token      TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used       BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
     """
     with get_conn() as conn:
         with conn.cursor() as cur:
