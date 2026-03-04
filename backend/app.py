@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_mail import Mail
 from config import config_data as config
-from db import db
+from db import db, apply_match_result
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token
 
 def create_app(test_config=None):
@@ -165,7 +165,7 @@ def create_app(test_config=None):
 
             db.session.commit()
 
-            # apply_match_result(match_id)
+            apply_match_result(match_id)
 
             return jsonify({"message": "Match result recorded, score added"}), 200
 

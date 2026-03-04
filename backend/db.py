@@ -70,6 +70,11 @@ class Match(db.Model):
     away_team_id = db.Column(db.Integer, db.ForeignKey(Team.id))
     reported_by = db.Column(db.Integer, db.ForeignKey(User.id))
 
+class TeamMember(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey(Team.id))
+    member_id = db.Column(db.Integer, db.ForeignKey(Member.id))
+
 class PasswordResetToken(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey(User.id))
@@ -80,57 +85,50 @@ class PasswordResetToken(db.Model):
 
 def apply_match_result(match_id: int):
     """
-    After a match is marked 'completed', update both teams' ratings
-    using the simple +25/-25 system and recalculate ladder rankings.
+    Verwerkt het resultaat van een afgeronde match op basis van de individuele ELO van de spelers.
     """
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            # 1. Fetch match info + current ratings
-            cur.execute("""
-                SELECT m.home_team_id, m.away_team_id, m.winner_team_id,
-                       th.rating AS home_rating, ta.rating AS away_rating,
-                       m.ladder_id
-                FROM   matches m
-                JOIN   teams th ON th.id = m.home_team_id
-                JOIN   teams ta ON ta.id = m.away_team_id
-                WHERE  m.id = %s AND m.status = 'completed'
-            """, (match_id,))
-            row = cur.fetchone()
-            if row is None:
-                return
+    match = Match.query.get(match_id)
+    
+    if not match or not match.result:
+        return
 
-            home_id, away_id, winner_id, home_rating, away_rating, ladder_id = row
+    score = Score.query.get(match.result)
+    if not score or score.home_score is None or score.away_score is None:
+        return
 
-            # No draws
-            if winner_id is None:
-                return
+    # 1. Bepaal winnend en verliezend team ID
+    if score.home_score > score.away_score:
+        winner_team_id = match.home_team_id
+        loser_team_id = match.away_team_id
+    elif score.away_score > score.home_score:
+        winner_team_id = match.away_team_id
+        loser_team_id = match.home_team_id
+    else:
+        return
 
-            # 2. Determine winner/loser ratings
-            if winner_id == home_id:
-                winner_rating, loser_rating = home_rating, away_rating
-                loser_id = away_id
-            else:
-                winner_rating, loser_rating = away_rating, home_rating
-                loser_id = home_id
+    # 2. Haal de leden van beide teams op via de koppeltabel TeamMember
+    winner_members = Member.query.join(TeamMember).filter(TeamMember.team_id == winner_team_id).all()
+    loser_members = Member.query.join(TeamMember).filter(TeamMember.team_id == loser_team_id).all()
 
-            # 3. Calculate new ratings
-            new_winner_rating, new_loser_rating = calculate_elo_simple(winner_rating, loser_rating)
+    if not winner_members or not loser_members:
+        return
 
-            # 4. Update team ratings
-            cur.execute("UPDATE teams SET rating = %s WHERE id = %s", (new_winner_rating, winner_id))
-            cur.execute("UPDATE teams SET rating = %s WHERE id = %s", (new_loser_rating, loser_id))
+    # 3. Bereken het gemiddelde ELO per team vóór de wedstrijd
+    winner_avg_elo = sum(m.elo for m in winner_members) / len(winner_members)
+    loser_avg_elo = sum(m.elo for m in loser_members) / len(loser_members)
 
-            # 5. Recalculate ranks for the entire ladder (highest rating = rank 1)
-            cur.execute("""
-                WITH ranked AS (
-                    SELECT id, ROW_NUMBER() OVER (ORDER BY rating DESC) AS new_rank
-                    FROM   teams
-                    WHERE  ladder_id = %s AND active = TRUE
-                )
-                UPDATE teams t
-                SET    rank = r.new_rank
-                FROM   ranked r
-                WHERE  t.id = r.id
-            """, (ladder_id,))
+    # 4. Bereken nieuwe ELO met jouw elo-functie
+    new_winner_avg_elo, new_loser_avg_elo = calculate_elo_simple(winner_avg_elo, loser_avg_elo)
 
-        conn.commit()
+    # 5. Bereken hoeveel punten er gewonnen of verloren zijn
+    winner_delta = new_winner_avg_elo - winner_avg_elo
+    loser_delta = new_loser_avg_elo - loser_avg_elo
+
+    # 6. Pas de puntenwijziging toe op de individuele leden
+    for m in winner_members:
+        m.elo = int(m.elo + winner_delta)
+    
+    for m in loser_members:
+        m.elo = int(m.elo + loser_delta)
+    
+    db.session.commit()
