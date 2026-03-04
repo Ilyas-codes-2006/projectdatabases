@@ -6,3 +6,4 @@ python-dotenv
 Flask-Cors
 werkzeug
 PyJWT
+Flask-Mail
