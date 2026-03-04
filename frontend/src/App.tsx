@@ -108,10 +108,12 @@ export default function App() {
         setMessage({ text: 'Account created! You can now log in.', type: 'success' })
         setView('login')
       } else {
+        if (res.status === 500) return setView('servererror')
+        if (res.status === 502 || res.status === 503) return setView('badgateway')
         setMessage({ text: data.error || 'Registration failed', type: 'error' })
       }
     } catch {
-      setMessage({ text: 'Could not connect to server', type: 'error' })
+      setView('badgateway')
     } finally {
       setLoading(false)
     }
