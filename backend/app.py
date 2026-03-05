@@ -3,7 +3,7 @@ from flask_cors import CORS
 from flask_mail import Mail
 from config import config_data as config
 from db import init_db, get_conn, apply_match_result
-from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token
+from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, admin_required
 
 def create_app(test_config=None):
     app = Flask(__name__)
@@ -56,6 +56,7 @@ def create_app(test_config=None):
                 "token": result['token'],
                 "name": result['name'],
                 "user_id": result['user_id'],
+                "is_admin": result['is_admin']
             }), 200
         else:
             return jsonify({"error": result['error']}), 401
@@ -88,6 +89,42 @@ def create_app(test_config=None):
             return jsonify({"message": "User registered successfully"}), 201
         else:
             return jsonify({"error": result['error']}), 400
+
+
+    @app.route("/api/admin/users", methods=["GET"])
+    @token_required
+    @admin_required
+    def list_users():
+        """
+        Alleen toegankelijk voor admin gebruikers. Toont een lijst van alle geregistreerde gebruikers.
+        """
+        print("Admin user is accessing the user list")
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT id, first_name, last_name, email, age, sport, skill_level, club, elo, created_at
+                    FROM users
+                    ORDER BY id
+                """)
+                users = cur.fetchall()
+
+        user_list = []
+        for user in users:
+            user_list.append({
+                "id": user[0],
+                "first_name": user[1],
+                "last_name": user[2],
+                "email": user[3],
+                "age": user[4],
+                "sport": user[5],
+                "skill_level": user[6],
+                "club": user[7],
+                "elo": user[8],
+                "created_at": user[9].isoformat()
+            })
+        return jsonify(user_list), 200
+
+
 
     @app.route("/api/auth/forgot-password", methods=["POST"])
     def forgot_password():

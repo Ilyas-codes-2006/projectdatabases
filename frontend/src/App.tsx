@@ -3,7 +3,7 @@ import './App.css'
 import courtsBg from './assets/court.jpeg'
 
 // View types uitgebreid met de twee nieuwe schermen
-type View = 'home' | 'login' | 'register' | 'forgot-password' | 'reset-password'
+type View = 'home' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'admin'
 
 interface User {
   first_name: string
@@ -15,6 +15,19 @@ interface User {
   skill_level: string
   password: string
   confirm_password: string
+}
+
+type AdminUser = {
+  id: number
+  first_name: string
+  last_name: string
+  email: string
+  age: number
+  sport: string
+  skill_level: string
+  club: string
+  elo: number
+  created_at: string
 }
 
 const CLUBS = [
@@ -38,6 +51,9 @@ export default function App() {
   const [message, setMessage] = useState<{ text: string; type: 'error' | 'success' } | null>(null)
   const [loggedInUser, setLoggedInUser] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const isAdmin = localStorage.getItem('is_admin') === 'true'
+  const [users, setUsers] = useState<AdminUser[]>([])
+
 
   // Wachtwoord vergeten
   const [forgotEmail, setForgotEmail] = useState('')
@@ -87,6 +103,7 @@ export default function App() {
       if (res.ok) {
         localStorage.setItem('token', data.token)
         localStorage.setItem('userName', data.name)
+        localStorage.setItem('is_admin', String(data.is_admin))
         setLoggedInUser(data.name)
         setView('home')
         setMessage({ text: `Welkom terug, ${data.name}!`, type: 'success' })
@@ -141,6 +158,7 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('userName')
+    localStorage.removeItem('is_admin')
     setLoggedInUser(null)
     setMessage({ text: 'Je bent uitgelogd.', type: 'success' })
   }
@@ -209,6 +227,40 @@ export default function App() {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Admin: gebruikerslijst ophalen
+  // ---------------------------------------------------------------------------
+  const fetchUsers = async () => {
+    setLoading(true)
+    clearMessage()
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+
+      const data = await res.json()
+      if (res.ok) {
+        setUsers(data)
+      } else {
+        setMessage({ text: data.error || 'Kon gebruikers niet laden', type: 'error' })
+      }
+    } catch {
+      setMessage({ text: 'Kan geen verbinding maken met de server', type: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (view === 'admin') {
+      fetchUsers()
+    }
+  }, [view])
+
+
   return (
     <div className="app">
       {/* Navigation */}
@@ -220,15 +272,41 @@ export default function App() {
         <div className="nav-links">
           <button className={`nav-btn ${view === 'home' ? 'active' : ''}`} onClick={() => setView('home')}>Home</button>
           {!loggedInUser ? (
-            <>
-              <button className={`nav-btn ${view === 'login' ? 'active' : ''}`} onClick={() => { setView('login'); clearMessage() }}>Login</button>
-              <button className="nav-btn nav-cta" onClick={() => { setView('register'); clearMessage() }}>Join Now</button>
-            </>
+              <>
+                <button className={`nav-btn ${view === 'login' ? 'active' : ''}`} onClick={() => {
+                  setView('login');
+                  clearMessage()
+                }}>Login
+                </button>
+                <button className="nav-btn nav-cta" onClick={() => {
+                  setView('register');
+                  clearMessage()
+                }}>Join Now
+                </button>
+                {loggedInUser && isAdmin && (
+                    <button
+                        className={`nav-btn ${view === 'admin' ? 'active' : ''}`}
+                        onClick={() => setView('admin')}
+                    >
+                      Admin
+                    </button>
+                )}
+              </>
           ) : (
-            <>
-              <span className="nav-user">👋 {loggedInUser}</span>
-              <button className="nav-btn" onClick={handleLogout}>Logout</button>
-            </>
+              <>
+
+                {loggedInUser && isAdmin && (
+                    <button
+                        className={`nav-btn ${view === 'admin' ? 'active' : ''}`}
+                        onClick={() => setView('admin')}
+                    >
+                      Admin
+                    </button>
+                )}
+                <button className="nav-btn" onClick={handleLogout}>Logout</button>
+                <span className="nav-user">👋 {loggedInUser}</span>
+
+              </>
           )}
         </div>
       </nav>
@@ -523,6 +601,27 @@ export default function App() {
           </div>
         </div>
       )}
+
+         {/* ------------------------------------------------------------------ */}
+        {/* Admin View (placeholder)                                               */}
+        {/* ------------------------------------------------------------------ */}
+      {view === "admin" && (
+          <div className="auth-wrapper">
+            <div className="auth-card auth-card-wide">
+              <h2>All Users</h2>
+
+              {users.map(user => (
+                  <div key={user.id} className="feature-card">
+                    <strong>{user.first_name} {user.last_name}</strong>
+                    <p>{user.email}</p>
+                    <p>{user.club}</p>
+                    <p>{user.skill_level}</p>
+                  </div>
+              ))}
+            </div>
+          </div>
+      )}
+
     </div>
   )
 }

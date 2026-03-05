@@ -46,12 +46,14 @@ def register_user(first_name, last_name, email, age, sport, skill_level, club, p
 # Login
 # ---------------------------------------------------------------------------
 
-def _generate_token(user_id: int, email: str, first_name: str) -> str:
+def _generate_token(user_id: int, email: str, first_name: str, is_admin: bool) -> str:
     """Create a signed JWT for the given user."""
     payload = {
-        'sub': user_id,
+        # JWT spec expects the subject ('sub') to be a string
+        'sub': str(user_id),
         'email': email,
         'first_name': first_name,
+        'is_admin': is_admin,
         'iat': datetime.now(timezone.utc),
         'exp': datetime.now(timezone.utc) + timedelta(hours=config['jwt_expiry_hours']),
     }
@@ -63,7 +65,7 @@ def login_user(email: str, password: str) -> dict:
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, first_name, last_name, password_hash FROM users WHERE email = %s",
+                "SELECT id, first_name, last_name, password_hash, is_admin FROM users WHERE email = %s",
                 (email,),
             )
             row = cur.fetchone()
@@ -71,17 +73,18 @@ def login_user(email: str, password: str) -> dict:
     if row is None:
         return {'success': False, 'error': 'Invalid email or password'}
 
-    user_id, first_name, last_name, password_hash = row
+    user_id, first_name, last_name, password_hash, is_admin = row
 
     if not check_password_hash(password_hash, password):
         return {'success': False, 'error': 'Invalid email or password'}
 
-    token = _generate_token(user_id, email, first_name)
+    token = _generate_token(user_id, email, first_name, is_admin)
     return {
         'success': True,
         'token': token,
         'name': f"{first_name} {last_name}",
         'user_id': user_id,
+        'is_admin': is_admin
     }
 
 
@@ -109,6 +112,18 @@ def token_required(f):
         return f(*args, **kwargs)
     return decorated
 
+def admin_required(f):
+    """
+    Decorator that checks if the current user is an admin.
+    Must be used after @token_required to ensure g.current_user is set.
+    """
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        current_user = getattr(g, 'current_user', None)
+        if not current_user or not current_user.get('is_admin', False):
+            return jsonify({'error': 'Admin privileges required'}), 403
+        return f(*args, **kwargs)
+    return decorated
 
 # ---------------------------------------------------------------------------
 # Wachtwoord vergeten — stap 1: aanvraag & e-mail versturen
