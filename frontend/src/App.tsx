@@ -471,40 +471,11 @@ export default function App() {
                     onChange={e => setRegisterData({ ...registerData, email: e.target.value })} />
                 </div>
                 <div className="form-group">
-                  <label>Leeftijd</label>
-                  <input type="number" placeholder="25" min="6" max="100" required
-                    value={registerData.age}
-                    onChange={e => setRegisterData({ ...registerData, age: e.target.value })} />
+                  <label>Geboortedatum</label>
+                  <input type="date" placeholder="01-01-2000" required
+                    value={registerData.date_of_birth}
+                    onChange={e => setRegisterData({ ...registerData, date_of_birth: e.target.value })} />
                 </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Sport</label>
-                  <select required value={registerData.sport}
-                    onChange={e => setRegisterData({ ...registerData, sport: e.target.value })}>
-                    <option value="tennis">Tennis</option>
-                    <option value="padel">Padel</option>
-                    <option value="both">Beide</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Niveau</label>
-                  <select required value={registerData.skill_level}
-                    onChange={e => setRegisterData({ ...registerData, skill_level: e.target.value })}>
-                    <option value="">Kies niveau…</option>
-                    {SKILL_LEVELS.map(l => <option key={l} value={l.toLowerCase()}>{l}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>Club</label>
-                <select required value={registerData.club}
-                  onChange={e => setRegisterData({ ...registerData, club: e.target.value })}>
-                  <option value="">Kies je club…</option>
-                  {CLUBS.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
               </div>
 
               <div className="form-row">
