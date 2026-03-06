@@ -13,7 +13,7 @@ class User(db.Model):
     is_admin = db.Column(db.BOOLEAN, default=False)
     date_of_birth = db.Column(db.DATE, nullable=False)
     created_at = db.Column(db.DATE, nullable=False)
-    email = db.Column(db.VARCHAR(255), primary_key=True)
+    email = db.Column(db.VARCHAR(255), unique=True)
 
 class Club(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -58,7 +58,7 @@ class Team(db.Model):
 
 class Score(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    set = db.Column(db.Integer, primary_key=True)
+    set = db.Column(db.Integer, unique=True)
     home_score = db.Column(db.Integer)
     away_score = db.Column(db.Integer)
 class Match(db.Model):
