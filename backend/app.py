@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_mail import Mail
 from config import config_data as config
-from db import db, apply_match_result
+from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token
 
 def create_app(test_config=None):

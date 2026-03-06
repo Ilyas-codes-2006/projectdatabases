@@ -9,7 +9,7 @@ from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import config_data as config
-from db import db
+from db import *
 
 # Mail instance — wordt geïnitialiseerd via mail.init_app(app) in app.py
 mail = Mail()
