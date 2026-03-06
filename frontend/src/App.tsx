@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import courtsBg from './assets/court.jpeg'
+import NotFound from "./pages/notfound"
+import ServerError from './pages/servererror';
+import BadGateway from './pages/badgateway';
+
+
 
 // View types uitgebreid met de twee nieuwe schermen
-type View = 'home' | 'login' | 'register' | 'forgot-password' | 'reset-password'
+type View = 'home' | 'login' | 'register' | 'notfound' | 'servererror' | 'badgateway' | 'forgot-password' | 'reset-password';
 
 interface User {
   first_name: string
@@ -91,10 +96,13 @@ export default function App() {
         setView('home')
         setMessage({ text: `Welkom terug, ${data.name}!`, type: 'success' })
       } else {
+        if (res.status === 404) return setView('notfound')
+        if (res.status === 500) return setView('servererror')
+        if (res.status === 502 || res.status === 503) return setView('badgateway')
         setMessage({ text: data.error || 'Inloggen mislukt', type: 'error' })
       }
     } catch {
-      setMessage({ text: 'Kan geen verbinding maken met de server', type: 'error' })
+      setView('badgateway')
     } finally {
       setLoading(false)
     }
@@ -126,10 +134,12 @@ export default function App() {
         setMessage({ text: 'Account aangemaakt! Je kunt nu inloggen.', type: 'success' })
         setView('login')
       } else {
+        if (res.status === 500) return setView('servererror')
+        if (res.status === 502 || res.status === 503) return setView('badgateway')
         setMessage({ text: data.error || 'Registratie mislukt', type: 'error' })
       }
     } catch {
-      setMessage({ text: 'Kan geen verbinding maken met de server', type: 'error' })
+      setView('badgateway')
     } finally {
       setLoading(false)
     }
@@ -523,6 +533,9 @@ export default function App() {
           </div>
         </div>
       )}
+      {view === 'notfound' && <NotFound />}
+      {view === 'servererror' && <ServerError />}
+      {view === 'badgateway' && <BadGateway />}
     </div>
   )
 }
