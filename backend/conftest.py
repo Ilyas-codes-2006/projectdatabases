@@ -2,7 +2,7 @@ import pytest
 import psycopg
 from app import create_app
 
-TEST_DB_CONNSTR = "postgresql://app:@localhost:5432/matchup_test"
+TEST_DB_CONNSTR = "postgresql+psycopg://app:@localhost:5432/matchup_test"
 
 @pytest.fixture()
 def db_conn():
