@@ -33,6 +33,6 @@ config_data['frontend_url'] = os.getenv('FRONTEND_URL', 'http://team5.ua-ppdb.co
 
 # Build connection string
 config_data['db_connstr'] = (
-    f"postgresql://{config_data['db_username']}:{config_data['db_password']}"
+    f"postgresql+psycopg://{config_data['db_username']}:{config_data['db_password']}"
     f"@{config_data['db_host']}:{config_data['db_port']}/{config_data['db_name']}"
 )

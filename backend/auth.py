@@ -9,7 +9,7 @@ from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import config_data as config
-from db import get_conn
+from db import *
 
 # Mail instance — wordt geïnitialiseerd via mail.init_app(app) in app.py
 mail = Mail()
@@ -19,27 +19,30 @@ mail = Mail()
 # Registration
 # ---------------------------------------------------------------------------
 
-def register_user(first_name, last_name, email, age, sport, skill_level, club, password):
-    """Register a new user with hashed password."""
+def register_user(last_name, first_name, password, bio, is_admin, date_of_birth, email):
     password_hash = generate_password_hash(password)
+    
+    if User.query.filter_by(email=email).first():
+        return {'success': False, 'error': 'Email already registered'}
 
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            try:
-                cur.execute(
-                    """
-                    INSERT INTO users (first_name, last_name, email, age, sport, skill_level, club, password_hash)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                    """,
-                    (first_name, last_name, email, age, sport, skill_level, club, password_hash))
-                user_id = cur.fetchone()[0]
-                conn.commit()
-                return {'success': True, 'user_id': user_id}
-            except psycopg.errors.UniqueViolation:
-                return {'success': False, 'error': 'Email already registered'}
-            except Exception as e:
-                return {'success': False, 'error': str(e)}
+    new_user = User(
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        date_of_birth=date_of_birth,
+        bio=bio,
+        is_admin=is_admin,
+        created_at=datetime.now(),
+        password=password_hash
+    )
+
+    try:
+        db.session.add(new_user)
+        db.session.commit()
+        return {'success': True, 'user_id': new_user.id}
+    except Exception as e:
+        db.session.rollback()
+        return {'success': False, 'error': str(e)}
 
 
 # ---------------------------------------------------------------------------
@@ -59,29 +62,18 @@ def _generate_token(user_id: int, email: str, first_name: str) -> str:
 
 
 def login_user(email: str, password: str) -> dict:
-    """Verify credentials and return a JWT on success."""
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id, first_name, last_name, password_hash FROM users WHERE email = %s",
-                (email,),
-            )
-            row = cur.fetchone()
+    user = User.query.filter_by(email=email).first()
 
-    if row is None:
+    # We gebruiken user.password omdat dit zo in je db.py model gedefinieerd staat
+    if user is None or not check_password_hash(user.password, password):
         return {'success': False, 'error': 'Invalid email or password'}
 
-    user_id, first_name, last_name, password_hash = row
-
-    if not check_password_hash(password_hash, password):
-        return {'success': False, 'error': 'Invalid email or password'}
-
-    token = _generate_token(user_id, email, first_name)
+    token = _generate_token(user.id, user.email, user.first_name)
     return {
         'success': True,
         'token': token,
-        'name': f"{first_name} {last_name}",
-        'user_id': user_id,
+        'name': f"{user.first_name} {user.last_name}",
+        'user_id': user.id,
     }
 
 
@@ -115,55 +107,30 @@ def token_required(f):
 # ---------------------------------------------------------------------------
 
 def request_password_reset(email: str) -> dict:
-    """
-    Genereert een veilige reset-token, slaat die op in de database
-    en stuurt een e-mail met de resetlink.
+    user = User.query.filter_by(email=email).first()
 
-    BEVEILIGING: We geven altijd dezelfde response terug, ook als het
-    e-mailadres niet bestaat. Zo kan niemand raden welke e-mails
-    geregistreerd zijn (user enumeration attack voorkomen).
-    """
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id, first_name FROM users WHERE email = %s",
-                (email,)
-            )
-            row = cur.fetchone()
-
-    # Altijd success teruggeven — zie beveiliging hierboven
-    if row is None:
+    if user is None:
         return {'success': True}
 
-    user_id, first_name = row
-
-    # Genereer een cryptografisch veilige willekeurige token (256 bits)
     token = secrets.token_urlsafe(32)
-
-    # Token verloopt na 5 minuten
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
 
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            # Verwijder eventuele oude tokens voor deze gebruiker
-            cur.execute(
-                "DELETE FROM password_reset_tokens WHERE user_id = %s",
-                (user_id,)
-            )
-            # Sla de nieuwe token op
-            cur.execute(
-                """
-                INSERT INTO password_reset_tokens (user_id, token, expires_at)
-                VALUES (%s, %s, %s)
-                """,
-                (user_id, token, expires_at)
-            )
-            conn.commit()
+    # Verwijder eventuele oude tokens
+    PasswordResetToken.query.filter_by(user_id=user.id).delete()
+    
+    # Gebruik cexpires_at in plaats van expires_at, conform jouw model
+    new_token = PasswordResetToken(
+        user_id=user.id,
+        token=token,
+        cexpires_at=expires_at,
+        created_at=datetime.now(timezone.utc)
+    )
+    
+    db.session.add(new_token)
+    db.session.commit()
 
-    # Bouw de resetlink
     reset_url = f"{config['frontend_url']}?token={token}&view=reset-password"
 
-    # Verstuur de e-mail
     msg = Message(
         subject="Wachtwoord resetten — MatchUp",
         sender=config['mail_sender'],
@@ -192,54 +159,25 @@ Je wachtwoord blijft ongewijzigd.
 # ---------------------------------------------------------------------------
 
 def reset_password_with_token(token: str, new_password: str) -> dict:
-    """
-    Valideert de reset-token en slaat het nieuwe wachtwoord op.
+    reset_token = PasswordResetToken.query.filter_by(token=token).first()
 
-    Beveiligingschecks:
-    1. Token moet bestaan in de database
-    2. Token mag niet al gebruikt zijn
-    3. Token mag niet verlopen zijn
-    """
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT user_id, expires_at, used
-                FROM password_reset_tokens
-                WHERE token = %s
-                """,
-                (token,)
-            )
-            row = cur.fetchone()
-
-    if row is None:
+    if reset_token is None:
         return {'success': False, 'error': 'Ongeldige of verlopen resetlink.'}
 
-    user_id, expires_at, used = row
-
-    # Check: token al gebruikt?
-    if used:
+    if reset_token.used:
         return {'success': False, 'error': 'Deze resetlink is al gebruikt. Vraag een nieuwe aan.'}
 
-    # Check: token verlopen?
-    expires_at_aware = expires_at.replace(tzinfo=timezone.utc) if expires_at.tzinfo is None else expires_at
+    # Controleer de datum op het juiste veld: cexpires_at
+    expires_at_aware = reset_token.cexpires_at.replace(tzinfo=timezone.utc) if reset_token.cexpires_at.tzinfo is None else reset_token.cexpires_at
     if datetime.now(timezone.utc) > expires_at_aware:
         return {'success': False, 'error': 'Deze resetlink is verlopen. Vraag een nieuwe aan.'}
 
-    # Alles ok — sla het nieuwe gehashte wachtwoord op
-    new_hash = generate_password_hash(new_password)
-
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE users SET password_hash = %s WHERE id = %s",
-                (new_hash, user_id)
-            )
-            # Markeer de token als gebruikt zodat hij nooit hergebruikt kan worden
-            cur.execute(
-                "UPDATE password_reset_tokens SET used = TRUE WHERE token = %s",
-                (token,)
-            )
-            conn.commit()
+    user = User.query.get(reset_token.user_id)
+    if user:
+        # Update het juiste 'password' attribuut
+        user.password = generate_password_hash(new_password)
+        
+    reset_token.used = True
+    db.session.commit()
 
     return {'success': True}
