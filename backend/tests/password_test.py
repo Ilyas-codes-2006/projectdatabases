@@ -1,8 +1,6 @@
-import secrets
 from datetime import datetime, timezone, timedelta
-
-# Importeer direct de database en modellen uit je backend
 from db import db, User, PasswordResetToken
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -10,13 +8,12 @@ from db import db, User, PasswordResetToken
 
 def register_user(client):
     """Registreer een testgebruiker en geef het e-mailadres + wachtwoord terug."""
-    # Aangepast naar de verplichte velden uit app.py
     payload = {
         "first_name": "jan",
         "last_name": "jansen",
         "email": "jan@example.com",
         "date_of_birth": "1995-01-01",
-        "password": "oudwachtwoord123"
+        "password": "oudwachtwoord123",
     }
     res = client.post("/api/auth/register", json=payload)
     assert res.status_code == 201, res.get_json()
@@ -24,15 +21,17 @@ def register_user(client):
 
 
 def get_reset_token(client, email: str) -> str:
-    """Haal de meest recente reset-token rechtstreeks uit de database via ORM."""
+    """Haal de meest recente reset-token op via de database (gesorteerd op id)."""
     with client.application.app_context():
         user = User.query.filter_by(email=email).first()
         assert user is not None, "Gebruiker niet gevonden in database"
-        
+
         token_record = (
             PasswordResetToken.query
             .filter_by(user_id=user.id)
-            .order_by(PasswordResetToken.created_at.desc())
+            # Sorteer op id (auto-increment) in plaats van created_at (DATE),
+            # zodat tokens aangemaakt op dezelfde dag correct geordend worden.
+            .order_by(PasswordResetToken.id.desc())
             .first()
         )
         assert token_record is not None, "Geen reset-token gevonden in de database"
@@ -44,8 +43,7 @@ def expire_token(client, token: str):
     with client.application.app_context():
         token_record = PasswordResetToken.query.filter_by(token=token).first()
         assert token_record is not None, "Te verlopen token niet gevonden"
-        
-        # Omdat cexpires_at een DATE is, trekken we er 1 dag af om zeker te zijn in het verleden
+
         token_record.cexpires_at = datetime.now(timezone.utc) - timedelta(days=1)
         db.session.commit()
 
@@ -96,16 +94,15 @@ def test_reset_password_success(client, clean_users_db):
 
     res = client.post("/api/auth/reset-password", json={
         "token": token,
-        "new_password": "nieuwwachtwoord123"
+        "new_password": "nieuwwachtwoord123",
     })
-
     assert res.status_code == 200, res.get_json()
     assert "message" in res.get_json()
 
     # Controleer of inloggen met het nieuwe wachtwoord werkt
     login_res = client.post("/api/auth/login", json={
         "email": email,
-        "password": "nieuwwachtwoord123"
+        "password": "nieuwwachtwoord123",
     })
     assert login_res.status_code == 200, login_res.get_json()
 
@@ -118,7 +115,7 @@ def test_reset_password_old_password_no_longer_works(client, clean_users_db):
 
     client.post("/api/auth/reset-password", json={
         "token": token,
-        "new_password": "nieuwwachtwoord123"
+        "new_password": "nieuwwachtwoord123",
     })
 
     login_res = client.post("/api/auth/login", json={"email": email, "password": old_password})
@@ -142,7 +139,7 @@ def test_reset_password_invalid_token(client, clean_users_db):
     """Ongeldig / verzonnen token → 400."""
     res = client.post("/api/auth/reset-password", json={
         "token": "ditisgeengeldigetoken",
-        "new_password": "wachtwoord123"
+        "new_password": "wachtwoord123",
     })
     assert res.status_code == 400, res.get_json()
     assert "error" in res.get_json()
@@ -195,7 +192,7 @@ def test_forgot_password_overwrites_old_token(client, clean_users_db):
 
     assert first_token != second_token
 
-    # Eerste token mag niet meer werken (verwijderd door de tweede aanvraag in je auth code)
+    # Eerste token mag niet meer werken (verwijderd door de tweede aanvraag)
     res = client.post("/api/auth/reset-password", json={"token": first_token, "new_password": "wachtwoord123"})
     assert res.status_code == 400, res.get_json()
 
