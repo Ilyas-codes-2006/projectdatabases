@@ -20,7 +20,7 @@ interface User {
   first_name: string;
   last_name: string;
   email: string;
-  date_of_birth: Date;
+  date_of_birth: Date | string;
   password: string;
   confirm_password: string;
 }
@@ -32,10 +32,7 @@ export default function App() {
     first_name: "",
     last_name: "",
     email: "",
-    age: "",
-    club: "",
-    sport: "tennis",
-    skill_level: "",
+    date_of_birth: "",
     password: "",
     confirm_password: "",
   });
