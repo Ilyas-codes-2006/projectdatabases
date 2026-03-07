@@ -44,7 +44,7 @@ def register_user(first_name, last_name, email, age, sport, skill_level, club, p
 def _generate_token(user_id: int, email: str, first_name: str) -> str:
     """Create a signed JWT for the given user."""
     payload = {
-        'sub': user_id,
+        'sub': str(user_id),
         'email': email,
         'first_name': first_name,
         'iat': datetime.now(timezone.utc),
