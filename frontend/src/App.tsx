@@ -606,18 +606,64 @@ export default function App() {
         {/* Admin View (placeholder)                                               */}
         {/* ------------------------------------------------------------------ */}
       {view === "admin" && (
-          <div className="auth-wrapper">
-            <div className="auth-card auth-card-wide">
-              <h2>All Users</h2>
+          <div className="admin-wrapper">
+            <div className="admin-container">
+              <div className="admin-header">
+                <h1>Admin Dashboard</h1>
+                <p>Manage registered users</p>
+              </div>
 
-              {users.map(user => (
-                  <div key={user.id} className="feature-card">
-                    <strong>{user.first_name} {user.last_name}</strong>
-                    <p>{user.email}</p>
-                    <p>{user.club}</p>
-                    <p>{user.skill_level}</p>
-                  </div>
-              ))}
+              <div className="admin-card">
+                <div className="admin-card-header">
+                  <h2>Users</h2>
+                  <p>
+                    {users.length} registered user{users.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+
+                <div className="admin-table-wrapper">
+                  <table className="admin-table">
+                    <thead>
+                    <tr>
+                      <th>First Name</th>
+                      <th>Last Name</th>
+                      <th>Email</th>
+                      <th>Age</th>
+                      <th>Created At</th>
+                      <th>Action</th>
+                    </tr>
+                    </thead>
+
+                    <tbody>
+                    {users.length > 0 ? (
+                        users.map((user) => (
+                            <tr key={user.id}>
+                              <td>{user.first_name}</td>
+                              <td>{user.last_name}</td>
+                              <td>{user.email}</td>
+                              <td>{user.age}</td>
+                              <td>{new Date(user.created_at).toLocaleDateString()}</td>
+                              <td>
+                                <button
+                                    className="edit-btn"
+                                    onClick={() => alert("Edit user " + user.id)}
+                                >
+                                  Edit
+                                </button>
+                              </td>
+                            </tr>
+                        ))
+                    ) : (
+                        <tr>
+                          <td colSpan={6} className="empty-cell">
+                            No users found.
+                          </td>
+                        </tr>
+                    )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
       )}
