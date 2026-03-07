@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import "./App.css";
-import courtsBg from "./assets/court.jpeg";
+import { useState, useEffect } from 'react'
+import './App.css'
+import courtsBg from './assets/court.jpeg';
 import NotFound from "./pages/notfound";
 import ServerError from "./pages/servererror";
 import BadGateway from "./pages/badgateway";
@@ -14,6 +14,7 @@ type View =
   | "servererror"
   | "badgateway"
   | "forgot-password"
+  | "admin"
   | "reset-password";
 
 interface User {
@@ -23,6 +24,15 @@ interface User {
   date_of_birth: string;
   password: string;
   confirm_password: string;
+}
+
+type AdminUser = {
+  id: number
+  first_name: string
+  last_name: string
+  email: string
+  date_of_birth: string
+  created_at: string
 }
 
 export default function App() {
@@ -42,6 +52,7 @@ export default function App() {
   } | null>(null);
   const [loggedInUser, setLoggedInUser] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<AdminUser[]>([])
 
   // Wachtwoord vergeten
   const [forgotEmail, setForgotEmail] = useState("");
@@ -91,6 +102,7 @@ export default function App() {
       if (res.ok) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("userName", data.name);
+        localStorage.setItem('is_admin', String(data.is_admin))
         setLoggedInUser(data.name);
         setView("home");
         setMessage({ text: `Welkom terug, ${data.name}!`, type: "success" });
@@ -161,6 +173,7 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("userName");
+    localStorage.removeItem('is_admin')
     setLoggedInUser(null);
     setMessage({ text: "Je bent uitgelogd.", type: "success" });
   };
@@ -244,6 +257,40 @@ export default function App() {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // Admin: gebruikerslijst ophalen
+  // ---------------------------------------------------------------------------
+  const fetchUsers = async () => {
+    setLoading(true)
+    clearMessage()
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+
+      const data = await res.json()
+      if (res.ok) {
+        setUsers(data)
+      } else {
+        setMessage({ text: data.error || 'Kon gebruikers niet laden', type: 'error' })
+      }
+    } catch {
+      setMessage({ text: 'Kan geen verbinding maken met de server', type: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (view === 'admin') {
+      fetchUsers()
+    }
+  }, [view])
+
+
   return (
     <div className="app">
       {/* Navigation */}
@@ -252,41 +299,54 @@ export default function App() {
           <span className="nav-logo">🎾</span>
           <span className="nav-title">MatchUp</span>
         </div>
+
         <div className="nav-links">
           <button
-            className={`nav-btn ${view === "home" ? "active" : ""}`}
-            onClick={() => setView("home")}
+              className={`nav-btn ${view === "home" ? "active" : ""}`}
+              onClick={() => setView("home")}
           >
             Home
           </button>
+
           {!loggedInUser ? (
-            <>
-              <button
-                className={`nav-btn ${view === "login" ? "active" : ""}`}
-                onClick={() => {
-                  setView("login");
-                  clearMessage();
-                }}
-              >
-                Login
-              </button>
-              <button
-                className="nav-btn nav-cta"
-                onClick={() => {
-                  setView("register");
-                  clearMessage();
-                }}
-              >
-                Join Now
-              </button>
-            </>
+              <>
+                <button
+                    className={`nav-btn ${view === "login" ? "active" : ""}`}
+                    onClick={() => {
+                      setView("login");
+                      clearMessage();
+                    }}
+                >
+                  Login
+                </button>
+
+                <button
+                    className="nav-btn nav-cta"
+                    onClick={() => {
+                      setView("register");
+                      clearMessage();
+                    }}
+                >
+                  Join Now
+                </button>
+              </>
           ) : (
-            <>
-              <span className="nav-user">👋 {loggedInUser}</span>
-              <button className="nav-btn" onClick={handleLogout}>
-                Logout
-              </button>
-            </>
+              <>
+                {localStorage.getItem('is_admin') && (
+                    <button
+                        className={`nav-btn ${view === "admin" ? "active" : ""}`}
+                        onClick={() => setView("admin")}
+                    >
+                      Admin
+                    </button>
+                )}
+
+                <span className="nav-user">👋 {loggedInUser}</span>
+
+                <button className="nav-btn" onClick={handleLogout}>
+                  Logout
+                </button>
+              </>
           )}
         </div>
       </nav>
@@ -373,7 +433,7 @@ export default function App() {
       {/* ------------------------------------------------------------------ */}
       {/* Login View                                                          */}
       {/* ------------------------------------------------------------------ */}
-      {view === "login" && (
+      {view === 'login' && (
         <div className="auth-wrapper">
           <div className="auth-card">
             <div className="auth-header">
@@ -673,6 +733,73 @@ export default function App() {
           </div>
         </div>
       )}
+
+         {/* ------------------------------------------------------------------ */}
+        {/* Admin View (placeholder)                                               */}
+        {/* ------------------------------------------------------------------ */}
+      {view === "admin" && (
+          <div className="admin-wrapper">
+            <div className="admin-container">
+              <div className="admin-header">
+                <h1>Admin Dashboard</h1>
+                <p>Manage registered users</p>
+              </div>
+
+              <div className="admin-card">
+                <div className="admin-card-header">
+                  <h2>Users</h2>
+                  <p>
+                    {users.length} registered user{users.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+
+                <div className="admin-table-wrapper">
+                  <table className="admin-table">
+                    <thead>
+                    <tr>
+                      <th>First Name</th>
+                      <th>Last Name</th>
+                      <th>Email</th>
+                      <th>Date of Birth</th>
+                      <th>Created At</th>
+                      <th>Action</th>
+                    </tr>
+                    </thead>
+
+                    <tbody>
+                    {users.length > 0 ? (
+                        users.map((user) => (
+                            <tr key={user.id}>
+                              <td>{user.first_name}</td>
+                              <td>{user.last_name}</td>
+                              <td>{user.email}</td>
+                              <td>{new Date(user.date_of_birth).toLocaleDateString()}</td>
+                              <td>{new Date(user.created_at).toLocaleDateString()}</td>
+                              <td>
+                                <button
+                                    className="edit-btn"
+                                    onClick={() => alert("Edit user " + user.id)}
+                                >
+                                  Edit
+                                </button>
+                              </td>
+                            </tr>
+                        ))
+                    ) : (
+                        <tr>
+                          <td colSpan={6} className="empty-cell">
+                            No users found.
+                          </td>
+                        </tr>
+                    )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+      )}
+
       {view === "notfound" && <NotFound />}
       {view === "servererror" && <ServerError />}
       {view === "badgateway" && <BadGateway />}

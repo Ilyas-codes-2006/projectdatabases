@@ -4,7 +4,9 @@ from flask_mail import Mail
 from config import config_data as config
 from datetime import date
 from db import *
-from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token
+from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
+    admin_required
+
 
 def create_app(test_config=None):
     app = Flask(__name__)
@@ -60,6 +62,7 @@ def create_app(test_config=None):
                 "token": result['token'],
                 "name": result['name'],
                 "user_id": result['user_id'],
+                "is_admin": result['is_admin']
             }), 200
         else:
             return jsonify({"error": result['error']}), 401
@@ -96,6 +99,38 @@ def create_app(test_config=None):
             return jsonify({"message": "User registered successfully"}), 201
         else:
             return jsonify({"error": result['error']}), 400
+
+
+    @app.route("/api/admin/users", methods=["GET"])
+    @token_required
+    @admin_required
+    def list_users():
+        """
+        Alleen toegankelijk voor admin gebruikers. Toont een lijst van alle geregistreerde gebruikers.
+        """
+        print("Admin user is accessing the user list")
+        users = db.session.query(
+            User.id,
+            User.first_name,
+            User.last_name,
+            User.email,
+            User.date_of_birth,
+            User.created_at
+        ).all()
+
+        user_list = []
+        for user in users:
+            user_list.append({
+                "id": user.id,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "email": user.email,
+                "date_of_birth": user.date_of_birth.isoformat(),
+                "created_at": user.created_at.isoformat()
+            })
+        return jsonify(user_list), 200
+
+
 
     @app.route("/api/auth/forgot-password", methods=["POST"])
     def forgot_password():
