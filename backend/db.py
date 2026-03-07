@@ -1,168 +1,135 @@
-import psycopg
-from config import config_data as config
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.sql import func
 from elo import calculate_elo_simple
-from flask import current_app
 
-def get_conn():
-    return psycopg.connect(current_app.config["DB_CONNSTR"])
+db = SQLAlchemy()
 
-def init_db():
-    schema = """
-    CREATE TABLE IF NOT EXISTS users (
-        id            SERIAL PRIMARY KEY,
-        first_name    VARCHAR(100) NOT NULL,
-        last_name     VARCHAR(100) NOT NULL,
-        email         VARCHAR(255) NOT NULL UNIQUE,
-        age           INTEGER NOT NULL,
-        sport         VARCHAR(20) NOT NULL CHECK (sport IN ('tennis', 'padel', 'both')),
-        skill_level   VARCHAR(20) NOT NULL CHECK (skill_level IN ('beginner', 'intermediate', 'advanced', 'competitive', 'professional')),
-        club          VARCHAR(100) NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        is_admin      BOOLEAN NOT NULL DEFAULT FALSE,
-        elo           INTEGER NOT NULL DEFAULT 1200,
-        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    last_name = db.Column(db.VARCHAR(255))
+    first_name = db.Column(db.VARCHAR(255))
+    password = db.Column(db.VARCHAR(255))
+    bio = db.Column(db.VARCHAR(255))
+    is_admin = db.Column(db.BOOLEAN, default=False)
+    date_of_birth = db.Column(db.DATE, nullable=False)
+    created_at = db.Column(db.DATE, nullable=False)
+    email = db.Column(db.VARCHAR(255), unique=True)
 
-    CREATE TABLE IF NOT EXISTS clubs (
-        id         SERIAL PRIMARY KEY,
-        name       VARCHAR(100) NOT NULL UNIQUE,
-        city       VARCHAR(100),
-        created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-    );
+class Club(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.VARCHAR(255))
+    city = db.Column(db.VARCHAR(255))
+    created_at = db.Column(db.DATE, nullable=False)
 
-    CREATE TABLE IF NOT EXISTS members (
-        user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        club_id   INTEGER NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
-        is_admin  BOOLEAN NOT NULL DEFAULT FALSE,
-        joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        PRIMARY KEY (user_id, club_id)
-    );
+class Member(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey(User.id))
+    club_id = db.Column(db.Integer, db.ForeignKey(Club.id))
+    joined_at = db.Column(db.DATE, nullable=False)
+    is_admin = db.Column(db.BOOLEAN, default=False)
+    elo = db.Column(db.INTEGER, default=0)
 
-    CREATE TABLE IF NOT EXISTS sports (
-        id        SERIAL PRIMARY KEY,
-        name      VARCHAR(50) NOT NULL UNIQUE,
-        team_size INTEGER NOT NULL
-    );
+class Sport(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.VARCHAR(255))
+    team_size = db.Column(db.Integer)
 
-    CREATE TABLE IF NOT EXISTS ladders (
-        id                   SERIAL PRIMARY KEY,
-        club_id              INTEGER NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
-        sport_id             INTEGER NOT NULL REFERENCES sports(id),
-        name                 VARCHAR(100) NOT NULL,
-        challenge_limit      INTEGER NOT NULL DEFAULT 3,
-        scheduling_freq_days INTEGER NOT NULL DEFAULT 14,
-        k_factor             INTEGER NOT NULL DEFAULT 32,
-        active               BOOLEAN NOT NULL DEFAULT TRUE,
-        created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
+class Ladder(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sport_id = db.Column(db.Integer, db.ForeignKey(Sport.id))
+    club_id = db.Column(db.Integer, db.ForeignKey(Club.id))
+    name = db.Column(db.VARCHAR(255))
+    start_date = db.Column(db.DATE, nullable=False)
+    end_date = db.Column(db.DATE, nullable=False)
+    rules = db.Column(db.TEXT)
+    challenge_limit = db.Column(db.Integer)
 
-    CREATE TABLE IF NOT EXISTS teams (
-        id         SERIAL PRIMARY KEY,
-        ladder_id  INTEGER NOT NULL REFERENCES ladders(id) ON DELETE CASCADE,
-        name       VARCHAR(100) NOT NULL,
-        rating     INTEGER NOT NULL DEFAULT 1200,
-        rank       INTEGER,
-        active     BOOLEAN NOT NULL DEFAULT TRUE,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
+class Availability(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.DATE, nullable=False)
+    is_available = db.Column(db.BOOLEAN, default=False)
 
-    CREATE TABLE IF NOT EXISTS team_members (
-        team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        PRIMARY KEY (team_id, user_id)
-    );
+class Team(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ladder_id = db.Column(db.Integer, db.ForeignKey(Ladder.id))
+    name = db.Column(db.VARCHAR(255))
+    created_at = db.Column(db.DATE, nullable=False)
+    availability = db.Column(db.Integer, db.ForeignKey(Availability.id))
 
-    CREATE TABLE IF NOT EXISTS team_availability (
-        team_id     INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-        day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
-        PRIMARY KEY (team_id, day_of_week)
-    );
+class Score(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    set = db.Column(db.Integer, unique=True)
+    home_score = db.Column(db.Integer)
+    away_score = db.Column(db.Integer)
+class Match(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.DATE, nullable=False)
+    result = db.Column(db.Integer, db.ForeignKey(Score.id))
+    ladder_id = db.Column(db.Integer, db.ForeignKey(Ladder.id))
+    home_team_id = db.Column(db.Integer, db.ForeignKey(Team.id))
+    away_team_id = db.Column(db.Integer, db.ForeignKey(Team.id))
+    reported_by = db.Column(db.Integer, db.ForeignKey(User.id))
 
-    CREATE TABLE IF NOT EXISTS matches (
-        id             SERIAL PRIMARY KEY,
-        ladder_id      INTEGER NOT NULL REFERENCES ladders(id) ON DELETE CASCADE,
-        home_team_id   INTEGER NOT NULL REFERENCES teams(id),
-        away_team_id   INTEGER NOT NULL REFERENCES teams(id),
-        scheduled_at   TIMESTAMPTZ,
-        status         VARCHAR(20) NOT NULL DEFAULT 'pending'
-                           CHECK (status IN ('pending','confirmed','completed','declined','disputed')),
-        winner_team_id INTEGER REFERENCES teams(id),
-        score_home     VARCHAR(50),
-        score_away     VARCHAR(50),
-        reported_by    INTEGER REFERENCES users(id),
-        created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
+class TeamMember(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey(Team.id))
+    member_id = db.Column(db.Integer, db.ForeignKey(Member.id))
 
-    -- Tabel voor wachtwoord-reset tokens
-    CREATE TABLE IF NOT EXISTS password_reset_tokens (
-        id         SERIAL PRIMARY KEY,
-        user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        token      TEXT NOT NULL UNIQUE,
-        expires_at TIMESTAMPTZ NOT NULL,
-        used       BOOLEAN NOT NULL DEFAULT FALSE,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    """
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(schema)
-        conn.commit()
-    print("[db] Schema initialized.")
-
+class PasswordResetToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey(User.id))
+    token = db.Column(db.TEXT, nullable=False, unique=True)
+    cexpires_at = db.Column(db.DATE, nullable=False)
+    created_at = db.Column(db.DATE, nullable=False)
+    used = db.Column(db.BOOLEAN, default=False)
 
 def apply_match_result(match_id: int):
     """
-    After a match is marked 'completed', update both teams' ratings
-    using the simple +25/-25 system and recalculate ladder rankings.
+    Verwerkt het resultaat van een afgeronde match op basis van de individuele ELO van de spelers.
     """
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            # 1. Fetch match info + current ratings
-            cur.execute("""
-                SELECT m.home_team_id, m.away_team_id, m.winner_team_id,
-                       th.rating AS home_rating, ta.rating AS away_rating,
-                       m.ladder_id
-                FROM   matches m
-                JOIN   teams th ON th.id = m.home_team_id
-                JOIN   teams ta ON ta.id = m.away_team_id
-                WHERE  m.id = %s AND m.status = 'completed'
-            """, (match_id,))
-            row = cur.fetchone()
-            if row is None:
-                return
+    match = Match.query.get(match_id)
 
-            home_id, away_id, winner_id, home_rating, away_rating, ladder_id = row
+    if not match or not match.result:
+        return
 
-            # No draws
-            if winner_id is None:
-                return
+    score = Score.query.get(match.result)
+    if not score or score.home_score is None or score.away_score is None:
+        return
 
-            # 2. Determine winner/loser ratings
-            if winner_id == home_id:
-                winner_rating, loser_rating = home_rating, away_rating
-                loser_id = away_id
-            else:
-                winner_rating, loser_rating = away_rating, home_rating
-                loser_id = home_id
+    # 1. Bepaal winnend en verliezend team ID
+    if score.home_score > score.away_score:
+        winner_team_id = match.home_team_id
+        loser_team_id = match.away_team_id
+    elif score.away_score > score.home_score:
+        winner_team_id = match.away_team_id
+        loser_team_id = match.home_team_id
+    else:
+        return
 
-            # 3. Calculate new ratings
-            new_winner_rating, new_loser_rating = calculate_elo_simple(winner_rating, loser_rating)
+    # 2. Haal de leden van beide teams op via de koppeltabel TeamMember
+    winner_members = Member.query.join(TeamMember).filter(TeamMember.team_id == winner_team_id).all()
+    loser_members = Member.query.join(TeamMember).filter(TeamMember.team_id == loser_team_id).all()
 
-            # 4. Update team ratings
-            cur.execute("UPDATE teams SET rating = %s WHERE id = %s", (new_winner_rating, winner_id))
-            cur.execute("UPDATE teams SET rating = %s WHERE id = %s", (new_loser_rating, loser_id))
+    if not winner_members or not loser_members:
+        return
 
-            # 5. Recalculate ranks for the entire ladder (highest rating = rank 1)
-            cur.execute("""
-                WITH ranked AS (
-                    SELECT id, ROW_NUMBER() OVER (ORDER BY rating DESC) AS new_rank
-                    FROM   teams
-                    WHERE  ladder_id = %s AND active = TRUE
-                )
-                UPDATE teams t
-                SET    rank = r.new_rank
-                FROM   ranked r
-                WHERE  t.id = r.id
-            """, (ladder_id,))
+    # 3. Bereken het gemiddelde ELO per team vóór de wedstrijd
+    winner_avg_elo = sum(m.elo for m in winner_members) / len(winner_members)
+    loser_avg_elo = sum(m.elo for m in loser_members) / len(loser_members)
 
-        conn.commit()
+    # 4. Bereken nieuwe ELO met jouw elo-functie
+    new_winner_avg_elo, new_loser_avg_elo = calculate_elo_simple(winner_avg_elo, loser_avg_elo)
+
+    # 5. Bereken hoeveel punten er gewonnen of verloren zijn
+    winner_delta = new_winner_avg_elo - winner_avg_elo
+    loser_delta = new_loser_avg_elo - loser_avg_elo
+
+    # 6. Pas de puntenwijziging toe op de individuele leden
+    for m in winner_members:
+        m.elo = int(m.elo + winner_delta)
+
+    for m in loser_members:
+        m.elo = int(m.elo + loser_delta)
+
+    db.session.commit()

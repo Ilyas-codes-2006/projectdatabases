@@ -2,8 +2,11 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_mail import Mail
 from config import config_data as config
-from db import init_db, get_conn, apply_match_result
-from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, admin_required
+from datetime import date
+from db import *
+from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
+    admin_required
+
 
 def create_app(test_config=None):
     app = Flask(__name__)
@@ -13,6 +16,7 @@ def create_app(test_config=None):
         DEBUG=config["debug"],
         DB_CONNSTR=config["db_connstr"],
     )
+    app.config["SQLALCHEMY_DATABASE_URI"] = config["db_connstr"]
 
     # E-mail configuratie
     app.config['MAIL_SERVER']         = config['mail_server']
@@ -28,8 +32,10 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
 
+    db.init_app(app)
+
     with app.app_context():
-        init_db()
+        db.create_all()
 
     @app.get("/")
     def root():
@@ -65,7 +71,7 @@ def create_app(test_config=None):
     def register():
         try:
             data = request.json
-            required_fields = ['first_name', 'last_name', 'email', 'age', 'sport', 'skill_level', 'club', 'password']
+            required_fields = ['first_name', 'last_name', 'email', 'date_of_birth', 'password']
             if not data:
                 return jsonify({"error": "Invalid JSON"}), 400
             for field in required_fields:
@@ -74,15 +80,19 @@ def create_app(test_config=None):
         except Exception:
             return jsonify({"error": "Invalid request format"}), 400
 
+        try:
+            parsed_dob = date.fromisoformat(data['date_of_birth'])
+        except ValueError:
+            return jsonify({"error": "Ongeldige geboortedatum. Gebruik YYYY-MM-DD."}), 400
+
         result = register_user(
-            first_name=data['first_name'],
             last_name=data['last_name'],
-            email=data['email'],
-            age=data['age'],
-            sport=data['sport'],
-            skill_level=data['skill_level'],
-            club=data['club'],
-            password=data['password']
+            first_name=data['first_name'],
+            password=data['password'],
+            bio=data.get('bio', ''),
+            is_admin=data.get('is_admin', False),
+            date_of_birth=parsed_dob,
+            email=data['email']
         )
 
         if result['success']:
@@ -99,28 +109,24 @@ def create_app(test_config=None):
         Alleen toegankelijk voor admin gebruikers. Toont een lijst van alle geregistreerde gebruikers.
         """
         print("Admin user is accessing the user list")
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT id, first_name, last_name, email, age, sport, skill_level, club, elo, created_at
-                    FROM users
-                    ORDER BY id
-                """)
-                users = cur.fetchall()
+        users = db.session.query(
+            User.id,
+            User.first_name,
+            User.last_name,
+            User.email,
+            User.date_of_birth,
+            User.created_at
+        ).all()
 
         user_list = []
         for user in users:
             user_list.append({
-                "id": user[0],
-                "first_name": user[1],
-                "last_name": user[2],
-                "email": user[3],
-                "age": user[4],
-                "sport": user[5],
-                "skill_level": user[6],
-                "club": user[7],
-                "elo": user[8],
-                "created_at": user[9].isoformat()
+                "id": user.id,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "email": user.email,
+                "date_of_birth": user.date_of_birth.isoformat(),
+                "created_at": user.created_at.isoformat()
             })
         return jsonify(user_list), 200
 
@@ -168,47 +174,44 @@ def create_app(test_config=None):
     # Match routes
     # ---------------------------------------------------------------------------
 
-    @app.post("/api/matches/<int:match_id>/result")
+    @app.route("/api/matches/<int:match_id>/result", methods=["POST"])
     @token_required
-    def report_match_result(match_id):
+    def update_match_result(match_id):
         data = request.get_json()
-        if not data or "winner_team_id" not in data:
-            return jsonify({"error": "winner_team_id is required"}), 400
 
-        winner_team_id = data["winner_team_id"]
-        score_home = data.get("score_home")
-        score_away = data.get("score_away")
+        match = db.session.get(Match, match_id)
 
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT home_team_id, away_team_id
-                    FROM   matches
-                    WHERE  id = %s AND status IN ('pending', 'confirmed')
-                """, (match_id,))
-                match = cur.fetchone()
+        if match is None:
+            return jsonify({"error": "Match not found"}), 404
 
-                if match is None:
-                    return jsonify({"error": "Match not found or already completed"}), 404
+        home_score = data.get("score_home")
+        away_score = data.get("score_away")
 
-                home_team_id, away_team_id = match
+        winner_team_id = data.get("winner_team_id")
+        if winner_team_id and winner_team_id not in (match.home_team_id, match.away_team_id):
+            return jsonify({"error": "winner_team_id must be the home or away team"}), 400
 
-                if winner_team_id not in (home_team_id, away_team_id):
-                    return jsonify({"error": "winner_team_id must be the home or away team"}), 400
+        try:
+            new_score = Score(
+                set=1,
+                home_score=home_score,
+                away_score=away_score
+            )
+            db.session.add(new_score)
+            db.session.flush()
+            match.result = new_score.id
 
-                cur.execute("""
-                    UPDATE matches
-                    SET    status = 'completed',
-                           winner_team_id = %s,
-                           score_home = %s,
-                           score_away = %s
-                    WHERE  id = %s
-                """, (winner_team_id, score_home, score_away, match_id))
+            if "user_id" in data:
+                match.reported_by = data["user_id"]
 
-            conn.commit()
+            db.session.commit()
 
-        apply_match_result(match_id)
+            apply_match_result(match_id)
 
-        return jsonify({"message": "Match result recorded, ratings updated"}), 200
+            return jsonify({"message": "Match result recorded, score added"}), 200
 
-    return app  # ← niet vergeten
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+    return app
