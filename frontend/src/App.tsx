@@ -53,6 +53,7 @@ export default function App() {
   const [loggedInUser, setLoggedInUser] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<AdminUser[]>([])
+  const is_admin = localStorage.getItem("is_admin") === "true"
 
   // Wachtwoord vergeten
   const [forgotEmail, setForgotEmail] = useState("");
@@ -332,7 +333,7 @@ export default function App() {
               </>
           ) : (
               <>
-                {localStorage.getItem('is_admin') && (
+                {is_admin && (
                     <button
                         className={`nav-btn ${view === "admin" ? "active" : ""}`}
                         onClick={() => setView("admin")}
