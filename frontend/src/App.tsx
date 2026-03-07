@@ -53,6 +53,7 @@ export default function App() {
       setLoggedInUser(name)
     }
   }, [])
+  //haal de teams op!
   const fetchTeams = async () => {
     console.debug("Fetching teams…")
     setTeamsLoading(true)
@@ -63,27 +64,47 @@ export default function App() {
       const data = await res.json()
       console.debug("Teams fetched:", data)
       if (data.success) setTeams(data.teams)
+      //succes -> update lijst van teams
     } catch (err) {
       console.error("Error fetching teams:", err)
     } finally {
       setTeamsLoading(false)
     }
   }
+  const fetchClubs = async () => {
+      setClubsLoading(true)
+
+      try {
+        const res = await fetch('/api/clubs', {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        })
+
+        const data = await res.json()
+
+        if (data.success) {
+          setClubs(data.clubs)
+          setUserClub(data.user_club)
+        }
+
+      } catch (err) {
+        console.error("Error fetching clubs:", err)
+        setMessage({ text: "Could not load clubs", type: "error" })
+      } finally {
+        setClubsLoading(false)
+      }
+    }
   useEffect(() => {
     if (view === 'teams' || view === 'joinTeams') {
       fetchTeams()
     }
   }, [view])
 
+  //hetzelfde als teams -> clubs ophalen
   useEffect(() => {
     if (view === 'clubs') {
-      setClubsLoading(true)
-      setClubs([
-        { id: 1, name: 'TC De Warande', city: 'Brussel', sports: ['tennis'] },
-        { id: 2, name: 'Padel Factory Antwerp', city: 'Antwerpen', sports: ['padel'] },
-        { id: 3, name: 'TC Sportoase', city: 'Gent', sports: ['tennis', 'padel'] },
-      ])
-      setClubsLoading(false)
+      fetchClubs()
     }
   }, [view])
 
@@ -173,6 +194,7 @@ export default function App() {
       const data = await res.json()
 
       if (!data.success) {
+        //fail
         if (data.error === "already_in_team") {
           setMessage({ text: "Already in a team!", type: "error" })
         } else if (data.error === "no_active_ladder") {
@@ -181,6 +203,7 @@ export default function App() {
           setMessage({ text: data.error || "Failed to create team", type: "error" })
         }
       } else {
+        //succes
         if (data.message === "team_created") {
           setMessage({ text: "Team created!", type: "success" })
           setNewTeamName('')
@@ -208,6 +231,7 @@ export default function App() {
       const data = await res.json()
 
       if (!data.success) {
+        //fail
         if (data.error === "already_in_team") {
           setMessage({ text: "Already in a team!", type: "error" })
         } else if (data.error === "team_full") {
@@ -218,7 +242,7 @@ export default function App() {
           setMessage({ text: data.error || "Failed to join team", type: "error" })
         }
       } else {
-        // Success
+        //succes
         if (data.message === "joined_team") {
           setMessage({ text: "You joined the team!", type: "success" })
           await fetchTeams()
@@ -234,6 +258,14 @@ export default function App() {
   const handleJoinClub = async (club_id: number) => {
     setLoading(true)
     clearMessage()
+
+    if (userClub !== null) {
+      //al in een club!
+      setMessage({ text: "You are already in a club!", type: "error" })
+      setLoading(false)
+      return
+    }
+
     try {
       const res = await fetch(`/api/clubs/${club_id}/join`, {
         method: 'POST',
@@ -242,38 +274,23 @@ export default function App() {
         }
       })
       const data = await res.json()
-      if (res.ok) {
-        setMessage({ text: 'Successfully joined the club!', type: 'success' })
+
+      if (data.success) {
+        //succes
+        setMessage({ text: "Successfully joined the club!", type: "success" })
         setUserClub(club_id)
       } else {
-        setMessage({ text: data.error || 'Failed to join club', type: 'error' })
-      }
-    } catch {
-      setMessage({ text: 'Could not connect to server', type: 'error' })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleLeaveClub = async () => {
-    setLoading(true)
-    clearMessage()
-    try {
-      const res = await fetch('/api/clubs/leave', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        //error
+        if (data.error === "already_in_club") {
+          setMessage({ text: "You are already in a club!", type: "error" })
+        } else if (data.error === "club_not_found") {
+          setMessage({ text: "Club not found", type: "error" })
+        } else {
+          setMessage({ text: data.error || "Failed to join club", type: "error" })
         }
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setMessage({ text: 'Successfully left the club!', type: 'success' })
-        setUserClub(null)
-      } else {
-        setMessage({ text: data.error || 'Failed to leave club', type: 'error' })
       }
     } catch {
-      setMessage({ text: 'Could not connect to server', type: 'error' })
+      setMessage({ text: "Could not connect to server", type: "error" })
     } finally {
       setLoading(false)
     }
@@ -634,15 +651,24 @@ export default function App() {
                         📍 {club.city} — {club.sports.join(', ')}
                       </p>
                     </div>
-                    {userClub === club.id ? (
-                      <button className="btn-secondary" onClick={handleLeaveClub} style={{ padding: '8px 20px', fontSize: '0.9rem' }}>
-                        Leave
-                      </button>
-                    ) : (
-                      <button className="btn-primary" onClick={() => handleJoinClub(club.id)} disabled={userClub !== null} style={{ padding: '8px 20px', fontSize: '0.9rem' }}>
-                        {userClub !== null ? 'Already in a club' : 'Join'}
-                      </button>
-                    )}
+                    <button
+                    className={userClub === club.id ? 'btn-secondary' : 'btn-primary'}
+                    style={{ padding: '8px 20px', fontSize: '0.9rem' }}
+                    onClick={() => {
+                      if (userClub === club.id) {
+                      } else if (userClub !== null) {
+                        setMessage({ text: 'You are already in a club!', type: 'error' })
+                      } else {
+                        handleJoinClub(club.id)
+                      }
+                    }}
+                  >
+                    {userClub === club.id
+                      ? 'Leave'
+                      : userClub !== null
+                      ? 'Already in a club'
+                      : 'Join'}
+                  </button>
                   </div>
                 ))}
               </div>

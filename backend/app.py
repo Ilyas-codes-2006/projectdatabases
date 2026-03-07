@@ -135,7 +135,7 @@ def create_app(test_config=None):
     @token_required
     def get_teams():
         teams_data = show_teams()
-        return jsonify(teams_data)
+        return jsonify(teams_data) #return als JSOn
 
     @app.post("/api/teams")
     def new_team():
@@ -156,11 +156,20 @@ def create_app(test_config=None):
     @app.post("/api/teams/<int:team_id>/join")
     @token_required
     def join_team_(team_id):
-        return join_team(team_id)
+        result = join_team(team_id)
+        return jsonify(result)
+
+    @app.get("/api/clubs")
+    @token_required
+    def get_clubs():
+        clubs_data = show_clubs()
+        return jsonify(clubs_data)
 
     @app.post("/api/clubs/<int:club_id>/join")
     @token_required
     def join_club_(club_id):
-        return join_club(club_id)
+        result = join_club(club_id)
+        return jsonify(result)
 
     return app
+
