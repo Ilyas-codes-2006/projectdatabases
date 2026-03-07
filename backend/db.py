@@ -5,6 +5,7 @@ from elo import calculate_elo_simple
 db = SQLAlchemy()
 
 class User(db.Model):
+    __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     last_name = db.Column(db.VARCHAR(255))
     first_name = db.Column(db.VARCHAR(255))
@@ -88,7 +89,7 @@ def apply_match_result(match_id: int):
     Verwerkt het resultaat van een afgeronde match op basis van de individuele ELO van de spelers.
     """
     match = Match.query.get(match_id)
-    
+
     if not match or not match.result:
         return
 
@@ -127,8 +128,8 @@ def apply_match_result(match_id: int):
     # 6. Pas de puntenwijziging toe op de individuele leden
     for m in winner_members:
         m.elo = int(m.elo + winner_delta)
-    
+
     for m in loser_members:
         m.elo = int(m.elo + loser_delta)
-    
+
     db.session.commit()
