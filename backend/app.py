@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_mail import Mail
 from config import config_data as config
+from datetime import date
 from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token
 
@@ -76,13 +77,18 @@ def create_app(test_config=None):
         except Exception:
             return jsonify({"error": "Invalid request format"}), 400
 
+        try:
+            parsed_dob = date.fromisoformat(data['date_of_birth'])
+        except ValueError:
+            return jsonify({"error": "Ongeldige geboortedatum. Gebruik YYYY-MM-DD."}), 400
+
         result = register_user(
             last_name=data['last_name'],
             first_name=data['first_name'],
             password=data['password'],
             bio=data.get('bio', ''),
             is_admin=data.get('is_admin', False),
-            date_of_birth=data['date_of_birth'],
+            date_of_birth=parsed_dob,
             email=data['email']
         )
 
@@ -137,7 +143,7 @@ def create_app(test_config=None):
     @token_required
     def update_match_result(match_id):
         data = request.get_json()
-        
+
         match = db.session.get(Match, match_id)
 
         if match is None:
@@ -145,7 +151,7 @@ def create_app(test_config=None):
 
         home_score = data.get("score_home")
         away_score = data.get("score_away")
-        
+
         winner_team_id = data.get("winner_team_id")
         if winner_team_id and winner_team_id not in (match.home_team_id, match.away_team_id):
             return jsonify({"error": "winner_team_id must be the home or away team"}), 400
@@ -159,7 +165,7 @@ def create_app(test_config=None):
             db.session.add(new_score)
             db.session.flush()
             match.result = new_score.id
-            
+
             if "user_id" in data:
                 match.reported_by = data["user_id"]
 
