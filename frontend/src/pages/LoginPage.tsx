@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 interface Props {
-  onSuccess: (name: string, token: string) => void
+  onSuccess: (name: string, token: string, is_admin: boolean) => void
   onNavigate: (path: string) => void
   setMessage: (msg: { text: string; type: 'error' | 'success' } | null) => void
 }
@@ -24,7 +24,7 @@ export default function LoginPage({ onSuccess, onNavigate, setMessage }: Props) 
       })
       const data = await res.json()
       if (res.ok) {
-        onSuccess(data.name, data.token)
+        onSuccess(data.name, data.token, data.is_admin ?? false)
       } else {
         if (res.status === 404) return navigate('*')
         if (res.status === 500) return navigate('/500')

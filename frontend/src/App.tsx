@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage.tsx'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage.tsx'
+import AdminPage from './pages/AdminPage.tsx'
 import NotFound from './pages/notfound'
 import ServerError from './pages/servererror'
 import BadGateway from './pages/badgateway'
@@ -17,24 +18,32 @@ export default function App() {
 
   const [message, setMessage] = useState<{ text: string; type: 'error' | 'success' } | null>(null)
 
-  const [loggedInUser, setLoggedInUser] = useState<string | null>(() => {
-    return localStorage.getItem('userName')
-  })
+  const [loggedInUser, setLoggedInUser] = useState<string | null>(() =>
+    localStorage.getItem('userName')
+  )
+
+  const [isAdmin, setIsAdmin] = useState<boolean>(() =>
+    localStorage.getItem('is_admin') === 'true'
+  )
 
   const clearMessage = () => setMessage(null)
 
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('userName')
+    localStorage.removeItem('is_admin')
     setLoggedInUser(null)
+    setIsAdmin(false)
     setMessage({ text: 'Je bent uitgelogd.', type: 'success' })
     navigate('/')
   }
 
-  const handleLoginSuccess = (name: string, token: string) => {
+  const handleLoginSuccess = (name: string, token: string, is_admin: boolean) => {
     localStorage.setItem('token', token)
     localStorage.setItem('userName', name)
+    localStorage.setItem('is_admin', String(is_admin))
     setLoggedInUser(name)
+    setIsAdmin(is_admin)
     setMessage({ text: `Welkom terug, ${name}!`, type: 'success' })
     navigate('/')
   }
@@ -78,6 +87,14 @@ export default function App() {
             </>
           ) : (
             <>
+              {isAdmin && (
+                <button
+                  className={`nav-btn ${location.pathname === '/admin' ? 'active' : ''}`}
+                  onClick={() => { clearMessage(); navigate('/admin') }}
+                >
+                  Admin
+                </button>
+              )}
               <span className="nav-user">👋 {loggedInUser}</span>
               <button className="nav-btn" onClick={handleLogout}>Logout</button>
             </>
@@ -151,6 +168,15 @@ export default function App() {
               onNavigate={(path) => { clearMessage(); navigate(path) }}
               setMessage={setMessage}
             />
+          }
+        />
+
+        <Route
+          path="/admin"
+          element={
+            loggedInUser && isAdmin
+              ? <AdminPage setMessage={setMessage} />
+              : <Navigate to="/" replace />
           }
         />
 
