@@ -18,7 +18,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const name = localStorage.getItem("userName");
     const admin = localStorage.getItem("is_admin") === "true";
     if (token && name) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoggedInUser(name);
       setIsAdmin(admin);
     }
@@ -47,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");

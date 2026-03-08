@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMessageContext } from "../context/MessageContext";
+import { useMessage } from "../hooks/useMessage";
+import MessageBanner from "../components/MessageBanner";
 
 interface User {
   first_name: string;
@@ -13,16 +14,15 @@ interface User {
 
 export default function Register() {
   const navigate = useNavigate();
-  const { showMessage, clearMessage } = useMessageContext();
+  const { message, clearMessage, showMessage } = useMessage();
   const [loading, setLoading] = useState(false);
   const [registerData, setRegisterData] = useState<User>({
-    first_name: "",
-    last_name: "",
-    email: "",
-    date_of_birth: "",
-    password: "",
-    confirm_password: "",
+    first_name: "", last_name: "", email: "",
+    date_of_birth: "", password: "", confirm_password: "",
   });
+
+  const update = (field: keyof User) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setRegisterData({ ...registerData, [field]: e.target.value });
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +44,7 @@ export default function Register() {
       });
       const data = await res.json();
       if (res.ok) {
-        navigate("/login", { state: { message: "Account aangemaakt! Je kunt nu inloggen." } });
+        navigate("/login", { state: { message: "Account aangemaakt! Je kunt nu inloggen.", type: "success" } });
       } else {
         if (res.status === 500) return navigate("/500");
         if (res.status === 502 || res.status === 503) return navigate("/502");
@@ -57,11 +57,9 @@ export default function Register() {
     }
   };
 
-  const update = (field: keyof User) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setRegisterData({ ...registerData, [field]: e.target.value });
-
   return (
     <div className="auth-wrapper">
+      <MessageBanner message={message} onClose={clearMessage} />
       <div className="auth-card auth-card-wide">
         <div className="auth-header">
           <span className="auth-icon">🏅</span>
@@ -105,7 +103,7 @@ export default function Register() {
         </form>
         <p className="auth-switch">
           Al een account?{" "}
-          <button onClick={() => { clearMessage(); navigate("/login"); }}>Inloggen</button>
+          <button onClick={() => navigate("/login")}>Inloggen</button>
         </p>
       </div>
     </div>

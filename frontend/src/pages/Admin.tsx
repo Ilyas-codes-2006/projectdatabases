@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useMessageContext } from "../context/MessageContext";
+import { useMessage } from "../hooks/useMessage";
+import MessageBanner from "../components/MessageBanner";
 
 type AdminUser = {
   id: number;
@@ -15,7 +16,7 @@ type AdminUser = {
 export default function Admin() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
-  const { showMessage, clearMessage } = useMessageContext();
+  const { message, clearMessage, showMessage } = useMessage();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -26,17 +27,13 @@ export default function Admin() {
   useEffect(() => {
     const fetchUsers = async () => {
       setLoading(true);
-      clearMessage();
       try {
         const res = await fetch("/api/admin/users", {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         });
         const data = await res.json();
-        if (res.ok) {
-          setUsers(data);
-        } else {
-          showMessage(data.error || "Kon gebruikers niet laden", "error");
-        }
+        if (res.ok) setUsers(data);
+        else showMessage(data.error || "Kon gebruikers niet laden", "error");
       } catch {
         showMessage("Kan geen verbinding maken met de server", "error");
       } finally {
@@ -48,18 +45,17 @@ export default function Admin() {
 
   return (
     <div className="admin-wrapper">
+      <MessageBanner message={message} onClose={clearMessage} />
       <div className="admin-container">
         <div className="admin-header">
           <h1>Admin Dashboard</h1>
           <p>Manage registered users</p>
         </div>
-
         <div className="admin-card">
           <div className="admin-card-header">
             <h2>Users</h2>
             <p>{users.length} registered user{users.length !== 1 ? "s" : ""}</p>
           </div>
-
           <div className="admin-table-wrapper">
             {loading ? (
               <p style={{ padding: "1rem", textAlign: "center" }}>Laden…</p>
@@ -85,10 +81,7 @@ export default function Admin() {
                         <td>{new Date(user.date_of_birth).toLocaleDateString()}</td>
                         <td>{new Date(user.created_at).toLocaleDateString()}</td>
                         <td>
-                          <button
-                            className="edit-btn"
-                            onClick={() => alert("Edit user " + user.id)}
-                          >
+                          <button className="edit-btn" onClick={() => alert("Edit user " + user.id)}>
                             Edit
                           </button>
                         </td>

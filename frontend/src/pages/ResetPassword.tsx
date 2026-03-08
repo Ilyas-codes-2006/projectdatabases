@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useMessageContext } from "../context/MessageContext";
+import { useMessage } from "../hooks/useMessage";
+import MessageBanner from "../components/MessageBanner";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { showMessage, clearMessage } = useMessageContext();
+  const { message, clearMessage, showMessage } = useMessage();
   const [resetToken, setResetToken] = useState("");
   const [resetPassword, setResetPassword] = useState("");
   const [resetConfirm, setResetConfirm] = useState("");
@@ -16,7 +17,7 @@ export default function ResetPassword() {
     if (token) setResetToken(token);
   }, [searchParams]);
 
-  const handleResetPassword = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessage();
     if (resetPassword !== resetConfirm) {
@@ -36,7 +37,7 @@ export default function ResetPassword() {
       });
       const data = await res.json();
       if (res.ok) {
-        navigate("/login", { state: { message: data.message } });
+        navigate("/login", { state: { message: data.message, type: "success" } });
       } else {
         showMessage(data.error, "error");
       }
@@ -49,6 +50,7 @@ export default function ResetPassword() {
 
   return (
     <div className="auth-wrapper">
+      <MessageBanner message={message} onClose={clearMessage} />
       <div className="auth-card">
         <div className="auth-header">
           <span className="auth-icon">🔒</span>
@@ -56,26 +58,14 @@ export default function ResetPassword() {
           <p>Kies een sterk wachtwoord van minimaal 8 tekens.</p>
         </div>
         {resetToken ? (
-          <form onSubmit={handleResetPassword} className="auth-form">
+          <form onSubmit={handleSubmit} className="auth-form">
             <div className="form-group">
               <label>Nieuw wachtwoord</label>
-              <input
-                type="password"
-                placeholder="Min. 8 tekens"
-                required
-                value={resetPassword}
-                onChange={(e) => setResetPassword(e.target.value)}
-              />
+              <input type="password" placeholder="Min. 8 tekens" required value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} />
             </div>
             <div className="form-group">
               <label>Bevestig wachtwoord</label>
-              <input
-                type="password"
-                placeholder="Herhaal wachtwoord"
-                required
-                value={resetConfirm}
-                onChange={(e) => setResetConfirm(e.target.value)}
-              />
+              <input type="password" placeholder="Herhaal wachtwoord" required value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} />
             </div>
             <button type="submit" className="btn-submit" disabled={loading}>
               {loading ? "Opslaan…" : "Wachtwoord instellen"}
@@ -87,9 +77,7 @@ export default function ResetPassword() {
           </p>
         )}
         <p className="auth-switch">
-          <button onClick={() => { clearMessage(); navigate("/login"); }}>
-            ← Terug naar inloggen
-          </button>
+          <button onClick={() => navigate("/login")}>← Terug naar inloggen</button>
         </p>
       </div>
     </div>

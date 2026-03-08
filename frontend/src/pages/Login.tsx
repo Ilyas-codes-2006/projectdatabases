@@ -1,23 +1,21 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useMessageContext } from "../context/MessageContext";
+import { useMessage } from "../hooks/useMessage";
+import MessageBanner from "../components/MessageBanner";
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
-  const { showMessage, clearMessage } = useMessageContext();
+  const { message, clearMessage, showMessage } = useMessage();
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
 
-  // Toon berichten die via navigate(..., { state }) zijn meegegeven
-  // bv. na registratie of wachtwoord reset
+  // Show messages passed via navigate state (e.g. "Account aangemaakt!", "Wachtwoord gewijzigd")
   useEffect(() => {
-    const state = location.state as { message?: string } | null;
-    if (state?.message) {
-      showMessage(state.message, "success");
-      // Verwijder state zodat het bericht niet opnieuw verschijnt bij refresh
+    if (location.state?.message) {
+      showMessage(location.state.message, location.state.type ?? "success");
       window.history.replaceState({}, "");
     }
   }, []);
@@ -35,8 +33,7 @@ export default function Login() {
       const data = await res.json();
       if (res.ok) {
         login(data.token, data.name, data.is_admin);
-        showMessage(`Welkom terug, ${data.name}!`, "success");
-        navigate("/");
+        navigate("/", { state: { message: `Welkom terug, ${data.name}!`, type: "success" } });
       } else {
         if (res.status === 404) return navigate("/404");
         if (res.status === 500) return navigate("/500");
@@ -52,6 +49,7 @@ export default function Login() {
 
   return (
     <div className="auth-wrapper">
+      <MessageBanner message={message} onClose={clearMessage} />
       <div className="auth-card">
         <div className="auth-header">
           <span className="auth-icon">🎾</span>
@@ -84,15 +82,11 @@ export default function Login() {
           </button>
         </form>
         <p className="auth-switch">
-          <button onClick={() => { clearMessage(); navigate("/forgot-password"); }}>
-            Wachtwoord vergeten?
-          </button>
+          <button onClick={() => navigate("/forgot-password")}>Wachtwoord vergeten?</button>
         </p>
         <p className="auth-switch">
           Nog geen account?{" "}
-          <button onClick={() => { clearMessage(); navigate("/register"); }}>
-            Maak er een aan
-          </button>
+          <button onClick={() => navigate("/register")}>Maak er een aan</button>
         </p>
       </div>
     </div>

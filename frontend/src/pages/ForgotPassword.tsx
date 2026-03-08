@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMessageContext } from "../context/MessageContext";
+import { useMessage } from "../hooks/useMessage";
+import MessageBanner from "../components/MessageBanner";
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
-  const { showMessage, clearMessage } = useMessageContext();
+  const { message, clearMessage, showMessage } = useMessage();
   const [forgotEmail, setForgotEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleForgotPassword = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     clearMessage();
@@ -30,13 +31,14 @@ export default function ForgotPassword() {
 
   return (
     <div className="auth-wrapper">
+      <MessageBanner message={message} onClose={clearMessage} />
       <div className="auth-card">
         <div className="auth-header">
           <span className="auth-icon">🔑</span>
           <h2>Wachtwoord vergeten</h2>
           <p>Vul je e-mailadres in. Als het bij ons bekend is, sturen we je een resetlink.</p>
         </div>
-        <form onSubmit={handleForgotPassword} className="auth-form">
+        <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
             <label>E-mailadres</label>
             <input
@@ -52,9 +54,7 @@ export default function ForgotPassword() {
           </button>
         </form>
         <p className="auth-switch">
-          <button onClick={() => { clearMessage(); navigate("/login"); }}>
-            ← Terug naar inloggen
-          </button>
+          <button onClick={() => navigate("/login")}>← Terug naar inloggen</button>
         </p>
       </div>
     </div>
