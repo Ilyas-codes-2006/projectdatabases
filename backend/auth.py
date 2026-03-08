@@ -21,7 +21,7 @@ mail = Mail()
 
 def register_user(last_name, first_name, password, bio, is_admin, date_of_birth, email):
     password_hash = generate_password_hash(password)
-    
+
     if User.query.filter_by(email=email).first():
         return {'success': False, 'error': 'Email already registered'}
 
@@ -49,12 +49,14 @@ def register_user(last_name, first_name, password, bio, is_admin, date_of_birth,
 # Login
 # ---------------------------------------------------------------------------
 
-def _generate_token(user_id: int, email: str, first_name: str) -> str:
+def _generate_token(user_id: int, email: str, first_name: str, is_admin: bool) -> str:
     """Create a signed JWT for the given user."""
     payload = {
-        'sub': user_id,
+        # JWT spec expects the subject ('sub') to be a string
+        'sub': str(user_id),
         'email': email,
         'first_name': first_name,
+        'is_admin': is_admin,
         'iat': datetime.now(timezone.utc),
         'exp': datetime.now(timezone.utc) + timedelta(hours=config['jwt_expiry_hours']),
     }
@@ -68,12 +70,13 @@ def login_user(email: str, password: str) -> dict:
     if user is None or not check_password_hash(user.password, password):
         return {'success': False, 'error': 'Invalid email or password'}
 
-    token = _generate_token(user.id, user.email, user.first_name)
+    token = _generate_token(user.id, user.email, user.first_name, user.is_admin)
     return {
         'success': True,
         'token': token,
         'name': f"{user.first_name} {user.last_name}",
         'user_id': user.id,
+        'is_admin': user.is_admin
     }
 
 
@@ -101,6 +104,18 @@ def token_required(f):
         return f(*args, **kwargs)
     return decorated
 
+def admin_required(f):
+    """
+    Decorator that checks if the current user is an admin.
+    Must be used after @token_required to ensure g.current_user is set.
+    """
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        current_user = getattr(g, 'current_user', None)
+        if not current_user or not current_user.get('is_admin', False):
+            return jsonify({'error': 'Admin privileges required'}), 403
+        return f(*args, **kwargs)
+    return decorated
 
 # ---------------------------------------------------------------------------
 # Wachtwoord vergeten — stap 1: aanvraag & e-mail versturen
@@ -117,7 +132,7 @@ def request_password_reset(email: str) -> dict:
 
     # Verwijder eventuele oude tokens
     PasswordResetToken.query.filter_by(user_id=user.id).delete()
-    
+
     # Gebruik cexpires_at in plaats van expires_at, conform jouw model
     new_token = PasswordResetToken(
         user_id=user.id,
@@ -125,7 +140,7 @@ def request_password_reset(email: str) -> dict:
         cexpires_at=expires_at,
         created_at=datetime.now(timezone.utc)
     )
-    
+
     db.session.add(new_token)
     db.session.commit()
 
