@@ -15,7 +15,10 @@ type View =
   | "badgateway"
   | "forgot-password"
   | "admin"
-  | "reset-password";
+  | "reset-password"
+  | "teams"
+  | "clubs"
+  | "joinTeams";
 
 interface User {
   first_name: string;
@@ -62,6 +65,12 @@ export default function App() {
   const [resetToken, setResetToken] = useState("");
   const [resetPassword, setResetPassword] = useState("");
   const [resetConfirm, setResetConfirm] = useState("");
+  const [teams, setTeams] = useState<any[]>([])
+  const [teamsLoading, setTeamsLoading] = useState(false)
+  const [newTeamName, setNewTeamName] = useState('')
+  const [clubs, setClubs] = useState<any[]>([])
+  const [clubsLoading, setClubsLoading] = useState(false)
+  const [userClub, setUserClub] = useState<number | null>(null)
 
   // Restore session from localStorage on mount
   // Controleer ook of er een reset-token in de URL staat
@@ -83,6 +92,60 @@ export default function App() {
       window.history.replaceState({}, "", "/");
     }
   }, []);
+  //haal de teams op!
+  const fetchTeams = async () => {
+    console.debug("Fetching teams…")
+    setTeamsLoading(true)
+    try {
+      const res = await fetch('/api/teams', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      })
+      const data = await res.json()
+      console.debug("Teams fetched:", data)
+      if (data.success) setTeams(data.teams)
+      //succes -> update lijst van teams
+    } catch (err) {
+      console.error("Error fetching teams:", err)
+    } finally {
+      setTeamsLoading(false)
+    }
+  }
+  const fetchClubs = async () => {
+      setClubsLoading(true)
+
+      try {
+        const res = await fetch('/api/clubs', {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        })
+
+        const data = await res.json()
+
+        if (data.success) {
+          setClubs(data.clubs)
+          setUserClub(data.user_club)
+        }
+
+      } catch (err) {
+        console.error("Error fetching clubs:", err)
+        setMessage({ text: "Could not load clubs", type: "error" })
+      } finally {
+        setClubsLoading(false)
+      }
+    }
+  useEffect(() => {
+    if (view === 'teams' || view === 'joinTeams') {
+      fetchTeams()
+    }
+  }, [view])
+
+  //hetzelfde als teams -> clubs ophalen
+  useEffect(() => {
+    if (view === 'clubs') {
+      fetchClubs()
+    }
+  }, [view])
 
   const clearMessage = () => setMessage(null);
 
@@ -292,6 +355,126 @@ export default function App() {
   }, [view])
 
 
+  const handleCreateTeam = async () => {
+    if (!newTeamName) return
+    setLoading(true)
+    clearMessage()
+
+    try {
+      const res = await fetch('/api/teams', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ team_name: newTeamName })
+      })
+
+      const data = await res.json()
+
+      if (!data.success) {
+        //fail
+        if (data.error === "already_in_team") {
+          setMessage({ text: "Already in a team!", type: "error" })
+        } else if (data.error === "no_active_ladder") {
+          setMessage({ text: "No active ladder found", type: "error" })
+        } else {
+          setMessage({ text: data.error || "Failed to create team", type: "error" })
+        }
+      } else {
+        //succes
+        if (data.message === "team_created") {
+          setMessage({ text: "Team created!", type: "success" })
+          setNewTeamName('')
+          await fetchTeams()
+        }
+      }
+
+    } catch {
+      setMessage({ text: "Could not connect to server", type: "error" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleJoinTeam = async (team_id: number) => {
+    setLoading(true)
+    clearMessage()
+
+    try {
+      const res = await fetch(`/api/teams/${team_id}/join`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      })
+
+      const data = await res.json()
+
+      if (!data.success) {
+        //fail
+        if (data.error === "already_in_team") {
+          setMessage({ text: "Already in a team!", type: "error" })
+        } else if (data.error === "team_full") {
+          setMessage({ text: "This team is already full", type: "error" })
+        } else if (data.error === "team_not_found") {
+          setMessage({ text: "Team not found", type: "error" })
+        } else {
+          setMessage({ text: data.error || "Failed to join team", type: "error" })
+        }
+      } else {
+        //succes
+        if (data.message === "joined_team") {
+          setMessage({ text: "You joined the team!", type: "success" })
+          await fetchTeams()
+        }
+      }
+
+    } catch {
+      setMessage({ text: "Could not connect to server", type: "error" })
+    } finally {
+      setLoading(false)
+    }
+  }
+  const handleJoinClub = async (club_id: number) => {
+    setLoading(true)
+    clearMessage()
+
+    if (userClub !== null) {
+      //al in een club!
+      setMessage({ text: "You are already in a club!", type: "error" })
+      setLoading(false)
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/clubs/${club_id}/join`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        //succes
+        setMessage({ text: "Successfully joined the club!", type: "success" })
+        setUserClub(club_id)
+      } else {
+        //error
+        if (data.error === "already_in_club") {
+          setMessage({ text: "You are already in a club!", type: "error" })
+        } else if (data.error === "club_not_found") {
+          setMessage({ text: "Club not found", type: "error" })
+        } else {
+          setMessage({ text: data.error || "Failed to join club", type: "error" })
+        }
+      }
+    } catch {
+      setMessage({ text: "Could not connect to server", type: "error" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="app">
       {/* Navigation */}
@@ -343,7 +526,8 @@ export default function App() {
                 )}
 
                 <span className="nav-user">👋 {loggedInUser}</span>
-
+                <button className={`nav-btn ${view === 'teams' ? 'active' : ''}`} onClick={() => setView('teams')}>My Team</button>
+              <button className={`nav-btn ${view === 'clubs' ? 'active' : ''}`} onClick={() => setView('clubs')}>Clubs</button>
                 <button className="nav-btn" onClick={handleLogout}>
                   Logout
                 </button>
@@ -731,6 +915,171 @@ export default function App() {
                 Inloggen
               </button>
             </p>
+          </div>
+        </div>
+      )}
+      {/* Teams View */}
+      {view === 'teams' && (
+        <div className="auth-wrapper">
+          <div className="auth-card auth-card-wide">
+
+            <div className="auth-header">
+              <span className="auth-icon">🏸</span>
+              <h2>Padel Teams</h2>
+              <p>Create your own team or join another</p>
+            </div>
+
+            {/* Join team button */}
+            <div style={{display:'flex', justifyContent:'center', marginBottom:'2rem'}}>
+              <button
+                className="btn-primary"
+                onClick={() => setView('joinTeams')}
+              >
+                Join a Team
+              </button>
+            </div>
+
+            {/* Create team */}
+            <div className="auth-form">
+
+              <div className="form-group">
+                <label>Create a new team</label>
+
+                <input
+                  type="text"
+                  placeholder="Team name…"
+                  value={newTeamName}
+                  onChange={e => setNewTeamName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCreateTeam()
+                  }}
+                />
+              </div>
+              <button
+                className="btn-submit"
+                onClick={handleCreateTeam}
+                disabled={loading || !newTeamName}
+              >
+                {loading ? 'Creating…' : 'Create Team'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Join Teams Page */}
+      {view === 'joinTeams' && (
+        <div className="auth-wrapper">
+          <div className="auth-card auth-card-wide">
+            <div className="auth-header">
+              <span className="auth-icon">👥</span>
+              <h2>Available Teams</h2>
+              <p>Join an existing team</p>
+            </div>
+            {teamsLoading ? (
+              <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>
+                Loading teams…
+              </p>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
+                {teams.length === 0 && (
+                  <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>
+                    No teams available yet
+                  </p>
+                )}
+                {teams.map((team) => (
+                  <div
+                    key={team.team_id}
+                    className="feature-card"
+                    style={{
+                      display:'flex',
+                      justifyContent:'space-between',
+                      alignItems:'center'
+                    }}
+                  >
+                    <div>
+                      <strong>{team.team_name}</strong>
+                      <p style={{
+                        color:'var(--text-muted)',
+                        fontSize:'0.85rem',
+                        marginTop:'4px'
+                      }}>
+                        {team.member_count}/2 players
+                        {team.member_count >= 2 ? 'Full' : 'Open'}
+                      </p>
+
+                    </div>
+                    {team.member_count < 2 ? (
+                      <button
+                        className="btn-primary"
+                        onClick={() => handleJoinTeam(team.team_id)}
+                        style={{padding:'8px 20px', fontSize:'0.9rem'}}
+                      >
+                        Join
+                      </button>
+                    ) : (
+                      <span style={{color:'gray'}}>Full</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Back button */}
+            <div style={{marginTop:'2rem', textAlign:'center'}}>
+              <button
+                className="btn-secondary"
+                onClick={() => setView('teams')}
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Clubs View */}
+      {view === 'clubs' && (
+        <div className="auth-wrapper">
+          <div className="auth-card auth-card-wide">
+            <div className="auth-header">
+              <span className="auth-icon">🏟️</span>
+              <h2>Clubs</h2>
+              <p>Join a club to start playing tennis or padel</p>
+            </div>
+
+            {clubsLoading ? (
+              <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Loading clubs…</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {clubs.map((club) => (
+                  <div key={club.id} className="feature-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong>{club.name}</strong>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '4px' }}>
+                        📍 {club.city} — {club.sports.join(', ')}
+                      </p>
+                    </div>
+                    <button
+                    className={userClub === club.id ? 'btn-secondary' : 'btn-primary'}
+                    style={{ padding: '8px 20px', fontSize: '0.9rem' }}
+                    onClick={() => {
+                      if (userClub === club.id) {
+                        //leave club
+                      } else if (userClub !== null) {
+                        setMessage({ text: 'You are already in a club!', type: 'error' })
+                      } else {
+                        handleJoinClub(club.id)
+                      }
+                    }}
+                  >
+                    {userClub === club.id
+                      ? 'Leave'
+                      : userClub !== null
+                      ? 'Already in a club'
+                      : 'Join'}
+                  </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,4 +1,5 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, g
+import jwt
 from flask_cors import CORS
 from flask_mail import Mail
 from config import config_data as config
@@ -6,7 +7,8 @@ from datetime import date
 from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
     admin_required
-
+from teams import show_teams, create_team, join_team
+from clubs import show_clubs, join_club
 
 def create_app(test_config=None):
     app = Flask(__name__)
@@ -214,4 +216,45 @@ def create_app(test_config=None):
             db.session.rollback()
             return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
+    @app.get("/api/teams")
+    @token_required
+    def get_teams():
+        teams_data = show_teams()
+        return jsonify(teams_data) #return als JSOn
+
+    @app.post("/api/teams")
+    def new_team():
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token:
+            return jsonify({"error": "Missing token"}), 401
+        try:
+            payload = jwt.decode(token, config['jwt_secret'], algorithms=[config['jwt_algorithm']])
+            user_id = payload['sub']
+        except Exception:
+            return jsonify({"error": "Invalid token"}), 401
+        data = request.get_json()
+        if not data or 'team_name' not in data:
+            return jsonify({"error": "team_name is required"}), 400
+        team_data = create_team(data['team_name'], user_id)
+        return jsonify(team_data)
+
+    @app.post("/api/teams/<int:team_id>/join")
+    @token_required
+    def join_team_(team_id):
+        result = join_team(team_id)
+        return jsonify(result)
+
+    @app.get("/api/clubs")
+    @token_required
+    def get_clubs():
+        clubs_data = show_clubs()
+        return jsonify(clubs_data)
+
+    @app.post("/api/clubs/<int:club_id>/join")
+    @token_required
+    def join_club_(club_id):
+        result = join_club(club_id)
+        return jsonify(result)
+
     return app
+
