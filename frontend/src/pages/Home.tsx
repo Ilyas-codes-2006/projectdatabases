@@ -1,28 +1,35 @@
- import courtsBg from '../assets/court.jpeg'
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { useMessageContext } from "../context/MessageContext";
+import courtsBg from "../assets/court.jpeg";
 
-interface Props {
-  loggedInUser: string | null
-  onNavigate: (path: string) => void
-}
+export default function Home() {
+  const navigate = useNavigate();
+  const { loggedInUser } = useAuth();
+  const { clearMessage } = useMessageContext();
 
-export default function HomePage({ loggedInUser, onNavigate }: Props) {
   return (
     <main className="hero">
-      <div className="hero-bg" style={{ backgroundImage: `url(${courtsBg})` }}></div>
+      <div
+        className="hero-bg"
+        style={{ backgroundImage: `url(${courtsBg})` }}
+      />
       <div className="hero-content">
         <p className="hero-eyebrow">Your Club. Your Game.</p>
         <h1 className="hero-title">
-          Manage your tennis &<br />padel experience
+          Manage your tennis &<br />
+          padel experience
         </h1>
         <p className="hero-subtitle">
-          Book courts, track your progress, connect with fellow players — all in one place for your club.
+          Book courts, track your progress, connect with fellow players —
+          all in one place for your club.
         </p>
         {!loggedInUser ? (
           <div className="hero-actions">
-            <button className="btn-primary" onClick={() => onNavigate('/register')}>
+            <button className="btn-primary" onClick={() => { clearMessage(); navigate("/register"); }}>
               Get Started
             </button>
-            <button className="btn-secondary" onClick={() => onNavigate('/login')}>
+            <button className="btn-secondary" onClick={() => { clearMessage(); navigate("/login"); }}>
               Sign In
             </button>
           </div>
@@ -34,7 +41,6 @@ export default function HomePage({ loggedInUser, onNavigate }: Props) {
         )}
       </div>
 
-      {/* Feature cards */}
       <div className="features">
         <div className="feature-card">
           <span className="feature-icon">🏆</span>
@@ -53,5 +59,5 @@ export default function HomePage({ loggedInUser, onNavigate }: Props) {
         </div>
       </div>
     </main>
-  )
+  );
 }
