@@ -986,7 +986,7 @@ export default function App() {
                     No teams available yet
                   </p>
                 )}
-                {teams.map((team:any) => (
+                {teams.map((team) => (
                   <div
                     key={team.team_id}
                     className="feature-card"
@@ -1049,7 +1049,7 @@ export default function App() {
               <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Loading clubs…</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {clubs.map((club: any) => (
+                {clubs.map((club) => (
                   <div key={club.id} className="feature-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <strong>{club.name}</strong>
@@ -1062,6 +1062,7 @@ export default function App() {
                     style={{ padding: '8px 20px', fontSize: '0.9rem' }}
                     onClick={() => {
                       if (userClub === club.id) {
+                        //leave club
                       } else if (userClub !== null) {
                         setMessage({ text: 'You are already in a club!', type: 'error' })
                       } else {
