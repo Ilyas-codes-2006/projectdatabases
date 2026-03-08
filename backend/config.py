@@ -21,8 +21,18 @@ config_data['jwt_expiry_hours'] = int(os.getenv('JWT_EXPIRY_HOURS', '24'))
 config_data['app_name'] = 'MatchUp'
 config_data['debug']    = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
 
+# Email settings
+config_data['mail_server']   = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+config_data['mail_port']     = int(os.getenv('MAIL_PORT', '587'))
+config_data['mail_username'] = os.getenv('MAIL_USERNAME', 'matchup.noreply@gmail.com')
+config_data['mail_password'] = os.getenv('MAIL_PASSWORD')
+config_data['mail_sender']   = os.getenv('MAIL_SENDER', 'matchup.noreply@gmail.com')
+
+# Frontend URL (used in reset email link)
+config_data['frontend_url'] = os.getenv('FRONTEND_URL', 'http://team5.ua-ppdb.com/')
+
 # Build connection string
 config_data['db_connstr'] = (
-    f"postgresql://{config_data['db_username']}:{config_data['db_password']}"
+    f"postgresql+psycopg://{config_data['db_username']}:{config_data['db_password']}"
     f"@{config_data['db_host']}:{config_data['db_port']}/{config_data['db_name']}"
 )

@@ -1,52 +1,62 @@
 import functools
+import secrets
 from datetime import datetime, timezone, timedelta
 
 import jwt
 import psycopg
 from flask import request, jsonify, g
+from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import config_data as config
-from db import get_conn
+from db import *
+
+# Mail instance — wordt geïnitialiseerd via mail.init_app(app) in app.py
+mail = Mail()
 
 
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 
-def register_user(first_name, last_name, email, age, sport, skill_level, club, password):
-    """Register a new user with hashed password."""
+def register_user(last_name, first_name, password, bio, is_admin, date_of_birth, email):
     password_hash = generate_password_hash(password)
 
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            try:
-                cur.execute(
-                    """
-                    INSERT INTO users (first_name, last_name, email, age, sport, skill_level, club, password_hash)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                    """,
-                    (first_name, last_name, email, age, sport, skill_level, club, password_hash))
-                user_id = cur.fetchone()[0]
-                conn.commit()
-                return {'success': True, 'user_id': user_id}
-            except psycopg.errors.UniqueViolation:
-                return {'success': False, 'error': 'Email already registered'}
-            except Exception as e:
-                return {'success': False, 'error': str(e)}
+    if User.query.filter_by(email=email).first():
+        return {'success': False, 'error': 'Email already registered'}
+
+    new_user = User(
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        date_of_birth=date_of_birth,
+        bio=bio,
+        is_admin=is_admin,
+        created_at=datetime.now(),
+        password=password_hash
+    )
+
+    try:
+        db.session.add(new_user)
+        db.session.commit()
+        return {'success': True, 'user_id': new_user.id}
+    except Exception as e:
+        db.session.rollback()
+        return {'success': False, 'error': str(e)}
 
 
 # ---------------------------------------------------------------------------
 # Login
 # ---------------------------------------------------------------------------
 
-def _generate_token(user_id: int, email: str, first_name: str) -> str:
+def _generate_token(user_id: int, email: str, first_name: str, is_admin: bool) -> str:
     """Create a signed JWT for the given user."""
     payload = {
+        # JWT spec expects the subject ('sub') to be a string
         'sub': str(user_id),
         'email': email,
         'first_name': first_name,
+        'is_admin': is_admin,
         'iat': datetime.now(timezone.utc),
         'exp': datetime.now(timezone.utc) + timedelta(hours=config['jwt_expiry_hours']),
     }
@@ -54,29 +64,19 @@ def _generate_token(user_id: int, email: str, first_name: str) -> str:
 
 
 def login_user(email: str, password: str) -> dict:
-    """Verify credentials and return a JWT on success."""
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id, first_name, last_name, password_hash FROM users WHERE email = %s",
-                (email,),
-            )
-            row = cur.fetchone()
+    user = User.query.filter_by(email=email).first()
 
-    if row is None:
+    # We gebruiken user.password omdat dit zo in je db.py model gedefinieerd staat
+    if user is None or not check_password_hash(user.password, password):
         return {'success': False, 'error': 'Invalid email or password'}
 
-    user_id, first_name, last_name, password_hash = row
-
-    if not check_password_hash(password_hash, password):
-        return {'success': False, 'error': 'Invalid email or password'}
-
-    token = _generate_token(user_id, email, first_name)
+    token = _generate_token(user.id, user.email, user.first_name, user.is_admin)
     return {
         'success': True,
         'token': token,
-        'name': f"{first_name} {last_name}",
-        'user_id': user_id,
+        'name': f"{user.first_name} {user.last_name}",
+        'user_id': user.id,
+        'is_admin': user.is_admin
     }
 
 
@@ -103,3 +103,96 @@ def token_required(f):
             return jsonify({'error': 'Invalid token'}), 401
         return f(*args, **kwargs)
     return decorated
+
+def admin_required(f):
+    """
+    Decorator that checks if the current user is an admin.
+    Must be used after @token_required to ensure g.current_user is set.
+    """
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        current_user = getattr(g, 'current_user', None)
+        if not current_user or not current_user.get('is_admin', False):
+            return jsonify({'error': 'Admin privileges required'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+# ---------------------------------------------------------------------------
+# Wachtwoord vergeten — stap 1: aanvraag & e-mail versturen
+# ---------------------------------------------------------------------------
+
+def request_password_reset(email: str) -> dict:
+    user = User.query.filter_by(email=email).first()
+
+    if user is None:
+        return {'success': True}
+
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+
+    # Verwijder eventuele oude tokens
+    PasswordResetToken.query.filter_by(user_id=user.id).delete()
+
+    # Gebruik cexpires_at in plaats van expires_at, conform jouw model
+    new_token = PasswordResetToken(
+        user_id=user.id,
+        token=token,
+        cexpires_at=expires_at,
+        created_at=datetime.now(timezone.utc)
+    )
+
+    db.session.add(new_token)
+    db.session.commit()
+
+    reset_url = f"{config['frontend_url']}?token={token}&view=reset-password"
+
+    msg = Message(
+        subject="Wachtwoord resetten — MatchUp",
+        sender=config['mail_sender'],
+        recipients=[email]
+    )
+    msg.body = f"""Hallo {user.first_name},
+
+Je hebt een wachtwoordreset aangevraagd voor je MatchUp-account.
+
+Klik op de onderstaande link om je wachtwoord in te stellen.
+Deze link is 5 minuten geldig en kan maar één keer gebruikt worden.
+
+{reset_url}
+
+Heb je dit niet zelf aangevraagd? Dan kun je deze e-mail veilig negeren.
+Je wachtwoord blijft ongewijzigd.
+
+— Het MatchUp Team
+"""
+    mail.send(msg)
+    return {'success': True}
+
+
+# ---------------------------------------------------------------------------
+# Wachtwoord vergeten — stap 2: nieuw wachtwoord instellen
+# ---------------------------------------------------------------------------
+
+def reset_password_with_token(token: str, new_password: str) -> dict:
+    reset_token = PasswordResetToken.query.filter_by(token=token).first()
+
+    if reset_token is None:
+        return {'success': False, 'error': 'Ongeldige of verlopen resetlink.'}
+
+    if reset_token.used:
+        return {'success': False, 'error': 'Deze resetlink is al gebruikt. Vraag een nieuwe aan.'}
+
+    # Controleer de datum op het juiste veld: cexpires_at
+    expires_at_aware = reset_token.cexpires_at.replace(tzinfo=timezone.utc) if reset_token.cexpires_at.tzinfo is None else reset_token.cexpires_at
+    if datetime.now(timezone.utc) > expires_at_aware:
+        return {'success': False, 'error': 'Deze resetlink is verlopen. Vraag een nieuwe aan.'}
+
+    user = User.query.get(reset_token.user_id)
+    if user:
+        # Update het juiste 'password' attribuut
+        user.password = generate_password_hash(new_password)
+
+    reset_token.used = True
+    db.session.commit()
+
+    return {'success': True}

@@ -1,9 +1,12 @@
 from flask import Flask, jsonify, request, g
 import jwt
 from flask_cors import CORS
+from flask_mail import Mail
 from config import config_data as config
-from db import init_db, get_conn, apply_match_result
-from auth import register_user, login_user, token_required
+from datetime import date
+from db import *
+from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
+    admin_required
 from teams import show_teams, create_team, join_team
 from clubs import show_clubs, join_club
 
@@ -15,12 +18,26 @@ def create_app(test_config=None):
         DEBUG=config["debug"],
         DB_CONNSTR=config["db_connstr"],
     )
+    app.config["SQLALCHEMY_DATABASE_URI"] = config["db_connstr"]
+
+    # E-mail configuratie
+    app.config['MAIL_SERVER']         = config['mail_server']
+    app.config['MAIL_PORT']           = config['mail_port']
+    app.config['MAIL_USE_TLS']        = True
+    app.config['MAIL_USERNAME']       = config['mail_username']
+    app.config['MAIL_PASSWORD']       = config['mail_password']
+    app.config['MAIL_DEFAULT_SENDER'] = config['mail_sender']
+
+    # Koppel de mail instantie aan de app
+    mail.init_app(app)
 
     if test_config:
         app.config.update(test_config)
 
+    db.init_app(app)
+
     with app.app_context():
-        init_db()
+        db.create_all()
 
     @app.get("/api/debug-token")
     def debug_token():
@@ -42,6 +59,10 @@ def create_app(test_config=None):
     def health():
         return jsonify({"status": "ok"})
 
+    # ---------------------------------------------------------------------------
+    # Auth routes
+    # ---------------------------------------------------------------------------
+
     @app.route("/api/auth/login", methods=["POST"])
     def login():
         data = request.get_json()
@@ -55,6 +76,7 @@ def create_app(test_config=None):
                 "token": result['token'],
                 "name": result['name'],
                 "user_id": result['user_id'],
+                "is_admin": result['is_admin']
             }), 200
         else:
             return jsonify({"error": result['error']}), 401
@@ -63,7 +85,7 @@ def create_app(test_config=None):
     def register():
         try:
             data = request.json
-            required_fields = ['first_name', 'last_name', 'email', 'age', 'sport', 'skill_level', 'club', 'password']
+            required_fields = ['first_name', 'last_name', 'email', 'date_of_birth', 'password']
             if not data:
                 return jsonify({"error": "Invalid JSON"}), 400
             for field in required_fields:
@@ -72,15 +94,19 @@ def create_app(test_config=None):
         except Exception:
             return jsonify({"error": "Invalid request format"}), 400
 
+        try:
+            parsed_dob = date.fromisoformat(data['date_of_birth'])
+        except ValueError:
+            return jsonify({"error": "Ongeldige geboortedatum. Gebruik YYYY-MM-DD."}), 400
+
         result = register_user(
-            first_name=data['first_name'],
             last_name=data['last_name'],
-            email=data['email'],
-            age=data['age'],
-            sport=data['sport'],
-            skill_level=data['skill_level'],
-            club=data['club'],
-            password=data['password']
+            first_name=data['first_name'],
+            password=data['password'],
+            bio=data.get('bio', ''),
+            is_admin=data.get('is_admin', False),
+            date_of_birth=parsed_dob,
+            email=data['email']
         )
 
         if result['success']:
@@ -88,48 +114,119 @@ def create_app(test_config=None):
         else:
             return jsonify({"error": result['error']}), 400
 
-    @app.post("/api/matches/<int:match_id>/result")
+
+    @app.route("/api/admin/users", methods=["GET"])
     @token_required
-    def report_match_result(match_id):
+    @admin_required
+    def list_users():
+        """
+        Alleen toegankelijk voor admin gebruikers. Toont een lijst van alle geregistreerde gebruikers.
+        """
+        print("Admin user is accessing the user list")
+        users = db.session.query(
+            User.id,
+            User.first_name,
+            User.last_name,
+            User.email,
+            User.date_of_birth,
+            User.created_at
+        ).all()
+
+        user_list = []
+        for user in users:
+            user_list.append({
+                "id": user.id,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "email": user.email,
+                "date_of_birth": user.date_of_birth.isoformat(),
+                "created_at": user.created_at.isoformat()
+            })
+        return jsonify(user_list), 200
+
+
+
+    @app.route("/api/auth/forgot-password", methods=["POST"])
+    def forgot_password():
+        """
+        Stap 1: gebruiker geeft zijn e-mail op.
+        We sturen altijd dezelfde response, ook als het e-mail niet bestaat
+        (voorkomt user enumeration).
+        """
         data = request.get_json()
-        if not data or "winner_team_id" not in data:
-            return jsonify({"error": "winner_team_id is required"}), 400
+        if not data or 'email' not in data:
+            return jsonify({"error": "E-mailadres is verplicht"}), 400
 
-        winner_team_id = data["winner_team_id"]
-        score_home = data.get("score_home")
-        score_away = data.get("score_away")
+        request_password_reset(data['email'])
 
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT home_team_id, away_team_id
-                    FROM   matches
-                    WHERE  id = %s AND status IN ('pending', 'confirmed')
-                """, (match_id,))
-                match = cur.fetchone()
+        # Altijd dezelfde neutrale boodschap teruggeven
+        return jsonify({
+            "message": "Als dit e-mailadres bij ons bekend is, ontvang je binnen enkele minuten een resetlink."
+        }), 200
 
-                if match is None:
-                    return jsonify({"error": "Match not found or already completed"}), 404
+    @app.route("/api/auth/reset-password", methods=["POST"])
+    def reset_password():
+        """
+        Stap 2: gebruiker heeft de link in de mail geopend en vult
+        zijn nieuwe wachtwoord in.
+        """
+        data = request.get_json()
+        if not data or 'token' not in data or 'new_password' not in data:
+            return jsonify({"error": "Token en nieuw wachtwoord zijn verplicht"}), 400
 
-                home_team_id, away_team_id = match
+        if len(data['new_password']) < 8:
+            return jsonify({"error": "Wachtwoord moet minimaal 8 tekens bevatten"}), 400
 
-                if winner_team_id not in (home_team_id, away_team_id):
-                    return jsonify({"error": "winner_team_id must be the home or away team"}), 400
+        result = reset_password_with_token(data['token'], data['new_password'])
 
-                cur.execute("""
-                    UPDATE matches
-                    SET    status = 'completed',
-                           winner_team_id = %s,
-                           score_home = %s,
-                           score_away = %s
-                    WHERE  id = %s
-                """, (winner_team_id, score_home, score_away, match_id))
+        if result['success']:
+            return jsonify({"message": "Wachtwoord succesvol gewijzigd! Je kunt nu inloggen."}), 200
+        else:
+            return jsonify({"error": result['error']}), 400
 
-            conn.commit()
+    # ---------------------------------------------------------------------------
+    # Match routes
+    # ---------------------------------------------------------------------------
 
-        apply_match_result(match_id)
+    @app.route("/api/matches/<int:match_id>/result", methods=["POST"])
+    @token_required
+    def update_match_result(match_id):
+        data = request.get_json()
 
-        return jsonify({"message": "Match result recorded, ratings updated"}), 200
+        match = db.session.get(Match, match_id)
+
+        if match is None:
+            return jsonify({"error": "Match not found"}), 404
+
+        home_score = data.get("score_home")
+        away_score = data.get("score_away")
+
+        winner_team_id = data.get("winner_team_id")
+        if winner_team_id and winner_team_id not in (match.home_team_id, match.away_team_id):
+            return jsonify({"error": "winner_team_id must be the home or away team"}), 400
+
+        try:
+            new_score = Score(
+                set=1,
+                home_score=home_score,
+                away_score=away_score
+            )
+            db.session.add(new_score)
+            db.session.flush()
+            match.result = new_score.id
+
+            if "user_id" in data:
+                match.reported_by = data["user_id"]
+
+            db.session.commit()
+
+            apply_match_result(match_id)
+
+            return jsonify({"message": "Match result recorded, score added"}), 200
+
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
     @app.get("/api/teams")
     @token_required
