@@ -144,7 +144,7 @@ def request_password_reset(email: str) -> dict:
     db.session.add(new_token)
     db.session.commit()
 
-    reset_url = f"{config['frontend_url']}?token={token}&view=reset-password"
+    reset_url = f"{config['frontend_url']}reset-password?token={token}&view=reset-password"
 
     msg = Message(
         subject="Wachtwoord resetten — MatchUp",
@@ -180,19 +180,31 @@ def reset_password_with_token(token: str, new_password: str) -> dict:
         return {'success': False, 'error': 'Ongeldige of verlopen resetlink.'}
 
     if reset_token.used:
-        return {'success': False, 'error': 'Deze resetlink is al gebruikt. Vraag een nieuwe aan.'}
+        return {'success': False, 'error': 'Deze resetlink is al gebruikt.'}
 
-    # Controleer de datum op het juiste veld: cexpires_at
-    expires_at_aware = reset_token.cexpires_at.replace(tzinfo=timezone.utc) if reset_token.cexpires_at.tzinfo is None else reset_token.cexpires_at
-    if datetime.now(timezone.utc) > expires_at_aware:
-        return {'success': False, 'error': 'Deze resetlink is verlopen. Vraag een nieuwe aan.'}
+    # 1. Combine the date/time from DB with UTC awareness
+    # Note: We use .combine if it's still coming back as a date,
+    # but with db.DateTime, it will be a datetime object.
+    expires_at = reset_token.cexpires_at
 
+    # Ensure it is a datetime object and add UTC info if missing
+    if isinstance(expires_at, datetime):
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+    else:
+        # Fallback if DB is still returning a date object
+        expires_at = datetime.combine(expires_at, datetime.min.time()).replace(tzinfo=timezone.utc)
+
+    # 2. Compare
+    if datetime.now(timezone.utc) > expires_at:
+        return {'success': False, 'error': 'Deze resetlink is verlopen.'}
+
+    # 3. Update password
     user = User.query.get(reset_token.user_id)
     if user:
-        # Update het juiste 'password' attribuut
         user.password = generate_password_hash(new_password)
+        reset_token.used = True
+        db.session.commit()
+        return {'success': True}
 
-    reset_token.used = True
-    db.session.commit()
-
-    return {'success': True}
+    return {'success': False, 'error': 'Gebruiker niet gevonden.'}
