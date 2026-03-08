@@ -39,18 +39,6 @@ def create_app(test_config=None):
     with app.app_context():
         db.create_all()
 
-    @app.get("/api/debug-token")
-    def debug_token():
-        header = request.headers.get('Authorization', 'GEEN HEADER')
-        print("HEADER:", header)
-        if header == 'GEEN HEADER':
-            return jsonify({"error": "geen header"}), 400
-        token = header.replace('Bearer ', '')
-        try:
-            payload = jwt.decode(token, config['jwt_secret'], algorithms=[config['jwt_algorithm']])
-            return jsonify({"success": True, "payload": payload})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 401
     @app.get("/")
     def root():
         return {"status": "MatchUp backend ok"}
