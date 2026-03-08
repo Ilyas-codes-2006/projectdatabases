@@ -1,4 +1,4 @@
-from db import db, Club, Member, Ladder, Sport
+from db import *
 from flask import g
 from datetime import date
 
