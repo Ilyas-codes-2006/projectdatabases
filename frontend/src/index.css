@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@tailwind utilities;
 
 html, body {
   height: 100%;

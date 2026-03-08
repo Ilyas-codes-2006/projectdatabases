@@ -1,85 +1,61 @@
-import psycopg
-from flask import jsonify, request, g
-from db import get_conn
-from auth import token_required
+from db import db, Club, Member, Ladder, Sport
+from flask import g
+from datetime import date
 
 def show_clubs():
+    user_id = int(g.current_user['sub'])  # <-- cast naar int
+    clubs = db.session.query(Club).all()
+    clubs_list = []
 
-    user_id = g.current_user['sub']
-
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT c.id,
-                       c.name,
-                       c.city,
-                       ARRAY_AGG(DISTINCT s.name) AS sports,
-                       m.user_id
-                FROM clubs c
-                LEFT JOIN ladders l ON l.club_id = c.id
-                LEFT JOIN sports s ON s.id = l.sport_id
-                LEFT JOIN members m 
-                    ON m.club_id = c.id AND m.user_id = %s
-                GROUP BY c.id, c.name, c.city, m.user_id
-                ORDER BY c.name
-            """, (user_id,))
-            #haal alle clubs met hun bijhorende informatie!
-            rows = cur.fetchall()
-
-    clubs = []
     user_club = None
+    for c in clubs:
+        # Haal ladder/sport info
+        ladders = db.session.query(Ladder).filter_by(club_id=c.id).all()
+        sports = [db.session.query(Sport).get(l.sport_id).name for l in ladders]
 
-    for row in rows:
-        sports = []
-        #haal alle sporten
-        for sport in row[3]:
-            if sport is not None:
-                sports.append(sport)
-        #zit gebruiker al in club!
-        if row[4] is not None:
-            user_club = row[0]
-        clubs.append({
-            "id": row[0],
-            "name": row[1],
-            "city": row[2],
+        # Check of gebruiker lid is
+        is_member = db.session.query(Member).filter_by(user_id=user_id, club_id=c.id).first()
+        if is_member:
+            user_club = c.id
+
+        clubs_list.append({
+            "id": c.id,
+            "name": c.name,
+            "city": c.city,
             "sports": sports
         })
 
     return {
         "success": True,
-        "clubs": clubs,
+        "clubs": clubs_list,
         "user_club": user_club
     }
+
+
 def join_club(club_id):
+    """
+    Voeg de huidige gebruiker toe aan een club. Mag alleen als die nog niet in een club zit.
+    """
+    user_id = int(g.current_user['sub'])  # <-- cast naar int
 
-    user_id = g.current_user['sub']
+    # Zorg dat de club bestaat
+    club = db.session.query(Club).filter_by(id=club_id).first()
+    if not club:
+        return {"success": False, "error": "club_not_found"}
 
-    with get_conn() as conn:
-        with conn.cursor() as cur:
+    # Check of de gebruiker al in een club zit
+    member = db.session.query(Member).filter_by(user_id=user_id).first()
+    if member and member.club_id is not None:
+        return {"success": False, "error": "already_in_club"}
 
-            cur.execute("""
-                SELECT id
-                FROM clubs
-                WHERE id = %s
-            """, (club_id,))
-            #bestaat club eigenlijk?
-            if cur.fetchone() is None:
-                return {"success": False, "error": "club_not_found"}
+    # Als er nog geen Member record is, maak er eentje
+    if not member:
+        member = Member(user_id=user_id, club_id=club_id, joined_at=date.today())
+        db.session.add(member)
+    else:
+        member.club_id = club_id
+        member.joined_at = date.today()
 
-            cur.execute("""
-                SELECT 1
-                FROM members
-                WHERE user_id = %s
-            """, (user_id,))
-            #zit user al in een club?
-            if cur.fetchone():
-                return {"success": False, "error": "already_in_club"}
-
-            cur.execute("""
-                INSERT INTO members (user_id, club_id)
-                VALUES (%s, %s)
-            """, (user_id, club_id))
-            #voeg user toe aan de club
-        conn.commit()
+    db.session.commit()
 
     return {"success": True, "message": "joined_club"}
