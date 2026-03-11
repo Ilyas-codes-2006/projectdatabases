@@ -76,9 +76,17 @@ body {
 }
 .nav-btn.nav-cta:hover { background: var(--clay-light); }
 
-.nav-user {
+.nav-user-btn {
   font-size: 0.9rem; color: var(--green-light);
-  font-weight: 600; padding: 0 10px;
+  font-weight: 600; padding: 8px 14px;
+  background: none; border: none;
+  cursor: pointer; border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  transition: all 0.2s;
+}
+.nav-user-btn:hover, .nav-user-btn.active {
+  color: var(--text);
+  background: var(--card-bg);
 }
 
 /* ─── MESSAGE BANNER ─── */
@@ -489,4 +497,158 @@ body {
   text-align: center;
   padding: 2rem;
   color: #94a3b8;
+}
+
+/* ─── PROFILE PAGE ─── */
+.profile-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 3rem 1.5rem 5rem;
+  min-height: calc(100vh - 64px);
+}
+
+.profile-card {
+  background: var(--mid);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 520px;
+  animation: fadeUp 0.4s ease both;
+  text-align: center;
+}
+
+.profile-photo-section {
+  margin-bottom: 1.5rem;
+}
+
+.profile-photo {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--green-light);
+}
+
+.profile-photo-placeholder {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: var(--green);
+  color: var(--white);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 2px;
+  border: 3px solid var(--green-light);
+}
+
+.profile-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2rem;
+  letter-spacing: 1.5px;
+  color: var(--text);
+  margin-bottom: 0.3rem;
+}
+
+.profile-email {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+}
+
+.profile-dob {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.profile-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5rem 0;
+}
+
+.profile-bio-section {
+  text-align: left;
+}
+
+.profile-section-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+}
+
+.profile-bio-text {
+  font-size: 0.95rem;
+  color: var(--text);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  margin-bottom: 1.5rem;
+}
+
+.profile-bio-input {
+  width: 100%;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  padding: 11px 14px;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.profile-bio-input:focus {
+  border-color: var(--green-light);
+  box-shadow: 0 0 0 3px rgba(64,145,108,0.12);
+}
+
+.profile-url-input {
+  width: 100%;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  padding: 11px 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.profile-url-input:focus {
+  border-color: var(--green-light);
+  box-shadow: 0 0 0 3px rgba(64,145,108,0.12);
+}
+
+.profile-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 1.2rem;
+}
+
+.profile-actions .btn-submit {
+  flex: 1;
+}
+
+.profile-actions .btn-secondary {
+  flex: 1;
+}
+
+.profile-edit-btn {
+  margin-top: 0.5rem;
+}
+
+.profile-error {
+  color: #ff6b6b;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
 }

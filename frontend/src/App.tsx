@@ -38,6 +38,7 @@ function Layout() {
         <Route path="/teams" element={<Teams />} />
         <Route path="/teams/join" element={<JoinTeams />} />
         <Route path="/clubs" element={<Clubs />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/500" element={<ServerError />} />
         <Route path="/502" element={<BadGateway />} />

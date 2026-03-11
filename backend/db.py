@@ -11,6 +11,7 @@ class User(db.Model):
     first_name = db.Column(db.VARCHAR(255))
     password = db.Column(db.VARCHAR(255))
     bio = db.Column(db.VARCHAR(255))
+    photo_url = db.Column(db.VARCHAR(500), default='')
     is_admin = db.Column(db.BOOLEAN, default=False)
     date_of_birth = db.Column(db.DATE, nullable=False)
     created_at = db.Column(db.DATE, nullable=False)
