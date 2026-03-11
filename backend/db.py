@@ -70,7 +70,7 @@ class Match(db.Model):
     cancelled = db.Column(db.BOOLEAN, default=False)
 
 class Score(db.Model):
-    match_id = db.Column(db.Integer,db.ForeignKey(Match.id) primary_key=True)
+    match_id = db.Column(db.Integer,db.ForeignKey(Match.id), primary_key=True)
     set = db.Column(db.Integer, primary_key=True)
     home_score = db.Column(db.Integer)
     away_score = db.Column(db.Integer)
