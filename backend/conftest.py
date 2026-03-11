@@ -6,6 +6,13 @@ from db import db as _db, User, PasswordResetToken
 TEST_DB_CONNSTR = "postgresql+psycopg://app:@localhost:5432/matchup_test"
 
 
+import pytest
+from app import create_app
+from db import db as _db, User, PasswordResetToken
+
+TEST_DB_CONNSTR = "postgresql+psycopg://app:@localhost:5432/matchup_test"
+
+
 @pytest.fixture(scope="session")
 def app():
     """Maak één Flask-app aan voor de hele testsessie."""
@@ -13,23 +20,18 @@ def app():
         "TESTING": True,
         "SQLALCHEMY_DATABASE_URI": TEST_DB_CONNSTR,
         "DB_CONNSTR": TEST_DB_CONNSTR,
+        "MAIL_SUPPRESS_SEND": True,
     })
 
     with application.app_context():
-        # DROP SCHEMA CASCADE verwijdert alle tabellen + FK-constraints in één keer,
-        # zodat een stale/oude schema geen problemen geeft.
-        _db.session.execute(text("DROP SCHEMA public CASCADE"))
-        _db.session.execute(text("CREATE SCHEMA public"))
-        _db.session.commit()
+        _db.drop_all()
         _db.create_all()
 
     yield application
 
-    # Opruimen na de sessie
     with application.app_context():
-        _db.session.execute(text("DROP SCHEMA public CASCADE"))
-        _db.session.execute(text("CREATE SCHEMA public"))
-        _db.session.commit()
+        _db.session.remove()
+        _db.drop_all()
 
 
 @pytest.fixture()
