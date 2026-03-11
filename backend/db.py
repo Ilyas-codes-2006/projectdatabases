@@ -45,36 +45,35 @@ class Ladder(db.Model):
     rules = db.Column(db.TEXT)
     challenge_limit = db.Column(db.Integer)
 
-class Availability(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.DATE, nullable=False)
-    is_available = db.Column(db.BOOLEAN, default=False)
-
 class Team(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ladder_id = db.Column(db.Integer, db.ForeignKey(Ladder.id))
     name = db.Column(db.VARCHAR(255))
     created_at = db.Column(db.DATE, nullable=False)
-    availability = db.Column(db.Integer, db.ForeignKey(Availability.id))
-
-class Score(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    set = db.Column(db.Integer, unique=True)
-    home_score = db.Column(db.Integer)
-    away_score = db.Column(db.Integer)
-class Match(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.DATE, nullable=False)
-    result = db.Column(db.Integer, db.ForeignKey(Score.id))
-    ladder_id = db.Column(db.Integer, db.ForeignKey(Ladder.id))
-    home_team_id = db.Column(db.Integer, db.ForeignKey(Team.id))
-    away_team_id = db.Column(db.Integer, db.ForeignKey(Team.id))
-    reported_by = db.Column(db.Integer, db.ForeignKey(User.id))
 
 class TeamMember(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey(Team.id))
-    member_id = db.Column(db.Integer, db.ForeignKey(Member.id))
+    user_id = db.Column(db.Integer, db.ForeignKey(User.id))
+
+class Availability(db.Model):
+    team_member_id = db.Column(db.Integer, db.ForeignKey(TeamMember.id), primary_key=True, )
+    date = db.Column(db.DATE, nullable=False, primary_key=True)
+    is_available = db.Column(db.BOOLEAN, default=False)
+
+class Match(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.DATE, nullable=False)
+    home_team_id = db.Column(db.Integer, db.ForeignKey(Team.id))
+    away_team_id = db.Column(db.Integer, db.ForeignKey(Team.id))
+    reported_by = db.Column(db.Integer, db.ForeignKey(User.id))
+    cancelled = db.Column(db.BOOLEAN, default=False)
+
+class Score(db.Model):
+    match_id = db.Column(db.Integer,db.ForeignKey(Match.id) primary_key=True)
+    set = db.Column(db.Integer, primary_key=True)
+    home_score = db.Column(db.Integer)
+    away_score = db.Column(db.Integer)
 
 class PasswordResetToken(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -82,6 +81,12 @@ class PasswordResetToken(db.Model):
     token = db.Column(db.TEXT, nullable=False, unique=True)
     cexpires_at = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DATE, nullable=False)
+    used = db.Column(db.BOOLEAN, default=False)
+
+class Request(db.Model):
+    club_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, primary_key=True)
+    expires_at = db.Column(db.DateTime, nullable=False)
     used = db.Column(db.BOOLEAN, default=False)
 
 def apply_match_result(match_id: int):
