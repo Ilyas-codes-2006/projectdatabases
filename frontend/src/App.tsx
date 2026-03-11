@@ -12,6 +12,7 @@ import Teams from "./pages/Teams";
 import JoinTeams from "./pages/JoinTeams";
 import Clubs from "./pages/Clubs";
 import Admin from "./pages/Admin";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/notfound";
 import ServerError from "./pages/servererror";
 import BadGateway from "./pages/badgateway";
