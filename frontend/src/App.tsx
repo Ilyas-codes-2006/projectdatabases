@@ -12,6 +12,7 @@ import Teams from "./pages/Teams";
 import JoinTeams from "./pages/JoinTeams";
 import Clubs from "./pages/Clubs";
 import Admin from "./pages/Admin";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/notfound";
 import ServerError from "./pages/servererror";
 import BadGateway from "./pages/badgateway";
@@ -38,6 +39,7 @@ function Layout() {
         <Route path="/teams" element={<Teams />} />
         <Route path="/teams/join" element={<JoinTeams />} />
         <Route path="/clubs" element={<Clubs />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/500" element={<ServerError />} />
         <Route path="/502" element={<BadGateway />} />
