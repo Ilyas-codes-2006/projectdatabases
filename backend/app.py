@@ -134,6 +134,48 @@ def create_app(test_config=None):
 
 
 
+    # ---------------------------------------------------------------------------
+    # Profile routes
+    # ---------------------------------------------------------------------------
+
+    @app.route("/api/profile", methods=["GET"])
+    @token_required
+    def get_profile():
+        user_id = g.current_user['sub']
+        user = db.session.get(User, int(user_id))
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        return jsonify({
+            "id": user.id,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "bio": user.bio or "",
+            "photo_url": user.photo_url or "",
+            "date_of_birth": user.date_of_birth.isoformat(),
+        }), 200
+
+    @app.route("/api/profile", methods=["PUT"])
+    @token_required
+    def update_profile():
+        user_id = g.current_user['sub']
+        user = db.session.get(User, int(user_id))
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON"}), 400
+        if 'bio' in data:
+            user.bio = data['bio']
+        if 'photo_url' in data:
+            user.photo_url = data['photo_url']
+        try:
+            db.session.commit()
+            return jsonify({"message": "Profile updated successfully"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+
     @app.route("/api/auth/forgot-password", methods=["POST"])
     def forgot_password():
         """

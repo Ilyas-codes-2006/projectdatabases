@@ -47,7 +47,9 @@ export default function Navbar() {
             <button className={`nav-btn ${active("/clubs")}`} onClick={() => navigate("/clubs")}>
               Clubs
             </button>
-            <span className="nav-user">👋 {loggedInUser}</span>
+            <button className={`nav-btn nav-user-btn ${active("/profile")}`} onClick={() => navigate("/profile")}>
+              👋 {loggedInUser}
+            </button>
             <button className="nav-btn" onClick={handleLogout}>
               Logout
             </button>
