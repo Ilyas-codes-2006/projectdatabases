@@ -8,7 +8,7 @@ TEST_DB_CONNSTR = "postgresql+psycopg://app:@localhost:5432/matchup_test"
 
 import pytest
 from app import create_app
-from db import db as _db, User, PasswordResetToken
+from db import db as _db, User,Member, PasswordResetToken
 
 TEST_DB_CONNSTR = "postgresql+psycopg://app:@localhost:5432/matchup_test"
 
@@ -51,8 +51,8 @@ def clean_users_db(app):
     Wordt uitgevoerd vóór elke test die hem gebruikt.
     """
     with app.app_context():
-        # Verwijder in de juiste volgorde vanwege FK-constraints
         PasswordResetToken.query.delete()
+        Member.query.delete()
         User.query.delete()
         _db.session.commit()
     yield
