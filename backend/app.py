@@ -10,31 +10,37 @@ from auth import register_user, login_user, token_required, mail, request_passwo
 from teams import show_teams, create_team, join_team
 from clubs import show_clubs, join_club
 
+from flask import Flask
+from flask_cors import CORS
+from db import db
+from flask_mail import Mail
+
+mail = Mail()
+
 def create_app(test_config=None):
     app = Flask(__name__)
     CORS(app)
 
+    # Default config
     app.config.from_mapping(
         DEBUG=config["debug"],
-        DB_CONNSTR=config["db_connstr"],
+        SQLALCHEMY_DATABASE_URI=config["db_connstr"],
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+
+        MAIL_SERVER=config["mail_server"],
+        MAIL_PORT=config["mail_port"],
+        MAIL_USE_TLS=True,
+        MAIL_USERNAME=config["mail_username"],
+        MAIL_PASSWORD=config["mail_password"],
+        MAIL_DEFAULT_SENDER=config["mail_sender"],
     )
-    app.config["SQLALCHEMY_DATABASE_URI"] = config["db_connstr"]
 
-    # E-mail configuratie
-    app.config['MAIL_SERVER']         = config['mail_server']
-    app.config['MAIL_PORT']           = config['mail_port']
-    app.config['MAIL_USE_TLS']        = True
-    app.config['MAIL_USERNAME']       = config['mail_username']
-    app.config['MAIL_PASSWORD']       = config['mail_password']
-    app.config['MAIL_DEFAULT_SENDER'] = config['mail_sender']
-
-    # Koppel de mail instantie aan de app
-    mail.init_app(app)
-
+    # Test config overschrijft alles
     if test_config:
         app.config.update(test_config)
 
     db.init_app(app)
+    mail.init_app(app)
 
     with app.app_context():
         db.create_all()
@@ -268,6 +274,48 @@ def create_app(test_config=None):
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
 
+
+    # ---------------------------------------------------------------------------
+    # Profile routes
+    # ---------------------------------------------------------------------------
+
+    @app.route("/api/profile", methods=["GET"])
+    @token_required
+    def get_profile():
+        user_id = g.current_user['sub']
+        user = db.session.get(User, int(user_id))
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        return jsonify({
+            "id": user.id,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "bio": user.bio or "",
+            "photo_url": user.photo_url or "",
+            "date_of_birth": user.date_of_birth.isoformat(),
+        }), 200
+
+    @app.route("/api/profile", methods=["PUT"])
+    @token_required
+    def update_profile():
+        user_id = g.current_user['sub']
+        user = db.session.get(User, int(user_id))
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON"}), 400
+        if 'bio' in data:
+            user.bio = data['bio']
+        if 'photo_url' in data:
+            user.photo_url = data['photo_url']
+        try:
+            db.session.commit()
+            return jsonify({"message": "Profile updated successfully"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
 
     @app.route("/api/auth/forgot-password", methods=["POST"])
     def forgot_password():

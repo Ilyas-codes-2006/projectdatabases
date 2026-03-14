@@ -1,4 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import UniqueConstraint, CheckConstraint
 from sqlalchemy.sql import func
 from elo import calculate_elo_simple
 
@@ -7,104 +8,146 @@ db = SQLAlchemy()
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
-    last_name = db.Column(db.VARCHAR(255))
-    first_name = db.Column(db.VARCHAR(255))
-    password = db.Column(db.VARCHAR(255))
+    last_name = db.Column(db.VARCHAR(255), nullable=False)
+    first_name = db.Column(db.VARCHAR(255), nullable=False)
+    password = db.Column(db.VARCHAR(255), nullable=False)
     bio = db.Column(db.VARCHAR(255))
+    photo_url = db.Column(db.VARCHAR(500), default='')
     is_admin = db.Column(db.BOOLEAN, default=False)
     date_of_birth = db.Column(db.DATE, nullable=False)
-    created_at = db.Column(db.DATE, nullable=False)
-    email = db.Column(db.VARCHAR(255), unique=True)
+    created_at = db.Column(db.DATE, nullable=False, default=func.current_date())
+    email = db.Column(db.VARCHAR(255), unique=True, nullable=False)
 
 class Club(db.Model):
+    __tablename__ = 'club'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.VARCHAR(255))
+    name = db.Column(db.VARCHAR(255), nullable=False)
     city = db.Column(db.VARCHAR(255))
-    created_at = db.Column(db.DATE, nullable=False)
+    created_at = db.Column(db.DATE, nullable=False, default=func.current_date())
 
 class Member(db.Model):
+    __tablename__ = 'member'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey(User.id))
-    club_id = db.Column(db.Integer, db.ForeignKey(Club.id))
-    joined_at = db.Column(db.DATE, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
+    joined_at = db.Column(db.DATE, nullable=False, default=func.current_date())
     is_admin = db.Column(db.BOOLEAN, default=False)
     elo = db.Column(db.INTEGER, default=0)
 
+    __table_args__ = (
+        UniqueConstraint('user_id', 'club_id', name='uq_user_club_membership'),
+    )
+
 class Sport(db.Model):
+    __tablename__ = 'sport'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.VARCHAR(255))
-    team_size = db.Column(db.Integer)
+    name = db.Column(db.VARCHAR(255), nullable=False)
+    team_size = db.Column(db.Integer, nullable=False)
 
 class Ladder(db.Model):
+    __tablename__ = 'ladder'
     id = db.Column(db.Integer, primary_key=True)
-    sport_id = db.Column(db.Integer, db.ForeignKey(Sport.id))
-    club_id = db.Column(db.Integer, db.ForeignKey(Club.id))
-    name = db.Column(db.VARCHAR(255))
+    sport_id = db.Column(db.Integer, db.ForeignKey('sport.id'), nullable=False)
+    club_id = db.Column(db.Integer, db.ForeignKey('club.id'))
+    name = db.Column(db.VARCHAR(255), nullable=False)
     start_date = db.Column(db.DATE, nullable=False)
     end_date = db.Column(db.DATE, nullable=False)
     rules = db.Column(db.TEXT)
     challenge_limit = db.Column(db.Integer)
 
-class Availability(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.DATE, nullable=False)
-    is_available = db.Column(db.BOOLEAN, default=False)
+    __table_args__ = (
+        CheckConstraint('end_date >= start_date', name='check_ladder_dates'),
+    )
 
 class Team(db.Model):
+    __tablename__ = 'team'
     id = db.Column(db.Integer, primary_key=True)
-    ladder_id = db.Column(db.Integer, db.ForeignKey(Ladder.id))
-    name = db.Column(db.VARCHAR(255))
-    created_at = db.Column(db.DATE, nullable=False)
-    availability = db.Column(db.Integer, db.ForeignKey(Availability.id))
-
-class Score(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    set = db.Column(db.Integer, unique=True)
-    home_score = db.Column(db.Integer)
-    away_score = db.Column(db.Integer)
-class Match(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.DATE, nullable=False)
-    result = db.Column(db.Integer, db.ForeignKey(Score.id))
-    ladder_id = db.Column(db.Integer, db.ForeignKey(Ladder.id))
-    home_team_id = db.Column(db.Integer, db.ForeignKey(Team.id))
-    away_team_id = db.Column(db.Integer, db.ForeignKey(Team.id))
-    reported_by = db.Column(db.Integer, db.ForeignKey(User.id))
+    ladder_id = db.Column(db.Integer, db.ForeignKey('ladder.id'), nullable=False)
+    name = db.Column(db.VARCHAR(255), nullable=False)
+    created_at = db.Column(db.DATE, nullable=False, default=func.current_date())
 
 class TeamMember(db.Model):
+    __tablename__ = 'team_member'
     id = db.Column(db.Integer, primary_key=True)
-    team_id = db.Column(db.Integer, db.ForeignKey(Team.id))
-    member_id = db.Column(db.Integer, db.ForeignKey(Member.id))
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('team_id', 'user_id', name='uq_team_user'),
+    )
+
+class Availability(db.Model):
+    __tablename__ = 'availability'
+    team_member_id = db.Column(db.Integer, db.ForeignKey('team_member.id'), primary_key=True)
+    date = db.Column(db.DATE, nullable=False, primary_key=True)
+    is_available = db.Column(db.BOOLEAN, default=False)
+
+class Match(db.Model):
+    __tablename__ = 'match'
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.DATE, nullable=False)
+    home_team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
+    away_team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
+    reported_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    cancelled = db.Column(db.BOOLEAN, default=False)
+
+    __table_args__ = (
+        CheckConstraint('home_team_id != away_team_id', name='check_teams_not_same'),
+    )
+
+class Score(db.Model):
+    __tablename__ = 'score'
+    match_id = db.Column(db.Integer, db.ForeignKey('match.id'), primary_key=True)
+    set = db.Column(db.Integer, primary_key=True)
+    home_score = db.Column(db.Integer, nullable=False)
+    away_score = db.Column(db.Integer, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint('home_score >= 0 AND away_score >= 0', name='check_positive_scores'),
+    )
 
 class PasswordResetToken(db.Model):
+    __tablename__ = 'password_reset_token'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey(User.id))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     token = db.Column(db.TEXT, nullable=False, unique=True)
-    cexpires_at = db.Column(db.DateTime, nullable=False)
-    created_at = db.Column(db.DATE, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False) # Typfout gecorrigeerd
+    created_at = db.Column(db.DATE, nullable=False, default=func.current_date())
     used = db.Column(db.BOOLEAN, default=False)
+
+class Request(db.Model):
+    __tablename__ = 'request'
+    club_id = db.Column(db.Integer, db.ForeignKey('club.id'), primary_key=True) # ForeignKey toegevoegd
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True) # ForeignKey toegevoegd
+    expires_at = db.Column(db.DateTime, nullable=False)
+    accepted = db.Column(db.BOOLEAN, default=False) # Naam gelijkgetrokken met ER-diagram
 
 def apply_match_result(match_id: int):
     """
     Verwerkt het resultaat van een afgeronde match op basis van de individuele ELO van de spelers.
     """
     match = Match.query.get(match_id)
-
-    if not match or not match.result:
+    if not match:
         return
 
-    score = Score.query.get(match.result)
-    if not score or score.home_score is None or score.away_score is None:
+    # Haal alle scores op voor deze specifieke match
+    scores = Score.query.filter_by(match_id=match.id).all()
+    if not scores:
         return
+
+    # Bereken de totale score over alle sets om een winnaar te bepalen
+    home_total = sum(s.home_score for s in scores)
+    away_total = sum(s.away_score for s in scores)
 
     # 1. Bepaal winnend en verliezend team ID
-    if score.home_score > score.away_score:
+    if home_total > away_total:
         winner_team_id = match.home_team_id
         loser_team_id = match.away_team_id
-    elif score.away_score > score.home_score:
+    elif away_total > home_total:
         winner_team_id = match.away_team_id
         loser_team_id = match.home_team_id
     else:
+        # Gelijkspel afhandeling indien nodig (nu overgeslagen)
         return
 
     # 2. Haal de leden van beide teams op via de koppeltabel TeamMember

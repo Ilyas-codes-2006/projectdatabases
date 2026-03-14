@@ -11,7 +11,10 @@ CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
 .env
+.venv/
 backend/.env
+backend/venv
+backend/.venv
 venv/
 __pycache__/
 *.pyc
@@ -25,3 +28,5 @@ node_modules/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #cmake-build-*
 frontend/.vite/
+
+.direnv
