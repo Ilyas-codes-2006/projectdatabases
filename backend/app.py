@@ -10,31 +10,37 @@ from auth import register_user, login_user, token_required, mail, request_passwo
 from teams import show_teams, create_team, join_team
 from clubs import show_clubs, join_club
 
+from flask import Flask
+from flask_cors import CORS
+from db import db
+from flask_mail import Mail
+
+mail = Mail()
+
 def create_app(test_config=None):
     app = Flask(__name__)
     CORS(app)
 
+    # Default config
     app.config.from_mapping(
         DEBUG=config["debug"],
-        DB_CONNSTR=config["db_connstr"],
+        SQLALCHEMY_DATABASE_URI=config["db_connstr"],
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+
+        MAIL_SERVER=config["mail_server"],
+        MAIL_PORT=config["mail_port"],
+        MAIL_USE_TLS=True,
+        MAIL_USERNAME=config["mail_username"],
+        MAIL_PASSWORD=config["mail_password"],
+        MAIL_DEFAULT_SENDER=config["mail_sender"],
     )
-    app.config["SQLALCHEMY_DATABASE_URI"] = config["db_connstr"]
 
-    # E-mail configuratie
-    app.config['MAIL_SERVER']         = config['mail_server']
-    app.config['MAIL_PORT']           = config['mail_port']
-    app.config['MAIL_USE_TLS']        = True
-    app.config['MAIL_USERNAME']       = config['mail_username']
-    app.config['MAIL_PASSWORD']       = config['mail_password']
-    app.config['MAIL_DEFAULT_SENDER'] = config['mail_sender']
-
-    # Koppel de mail instantie aan de app
-    mail.init_app(app)
-
+    # Test config overschrijft alles
     if test_config:
         app.config.update(test_config)
 
     db.init_app(app)
+    mail.init_app(app)
 
     with app.app_context():
         db.create_all()
