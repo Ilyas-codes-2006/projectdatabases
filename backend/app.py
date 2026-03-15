@@ -8,7 +8,7 @@ from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
     admin_required
 from teams import show_teams, create_team, join_team
-from clubs import show_clubs, join_club, request_join
+from clubs import show_clubs, leave_club, request_join
 
 from flask import Flask
 from flask_cors import CORS
@@ -302,6 +302,13 @@ def create_app(test_config=None):
     @token_required
     def join_club_(club_id):
         result = request_join(club_id)
+        return jsonify(result)
+
+
+    @app.post("/api/clubs/<int:club_id>/leave")
+    @token_required
+    def leave_club_(club_id):
+        result = leave_club(club_id)
         return jsonify(result)
 
     return app

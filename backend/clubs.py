@@ -3,22 +3,21 @@ from flask import g
 from datetime import date, timedelta
 
 def show_clubs():
-    user_id = int(g.current_user['sub'])
+    user_id = int(g.current_user["sub"])
     clubs = db.session.query(Club).all()
     clubs_list = []
 
     requests = db.session.query(Request).filter_by(user_id=user_id).all()
     requests_map = {r.club_id: r.accepted for r in requests}
 
-    # Fetch all memberships in one query instead of one per club
-    member = db.session.query(Member).filter_by(user_id=user_id).first()
-    user_club = member.club_id if member else None
+    members = db.session.query(Member).filter_by(user_id=user_id).all()
+    member_club_ids = {m.club_id for m in members}
 
     for c in clubs:
         ladders = db.session.query(Ladder).filter_by(club_id=c.id).all()
         sports = [db.session.query(Sport).get(l.sport_id).name for l in ladders]
 
-        if member and member.club_id == c.id:
+        if c.id in member_club_ids:
             status = "member"
         elif c.id in requests_map:
             status = "pending" if not requests_map[c.id] else "accepted"
@@ -33,11 +32,8 @@ def show_clubs():
             "request_status": status
         })
 
-    return {
-        "success": True,
-        "clubs": clubs_list,
-        "user_club": user_club,
-    }
+    return {"success": True, "clubs": clubs_list}
+
 
 
 def join_club(club_id):
@@ -80,10 +76,6 @@ def request_join(club_id):
     if not club:
         return {"success": False, "error": "club_not_found"}
 
-    member = db.session.query(Member).filter_by(user_id=user_id, club_id=club_id).first()
-    if member:
-        return {"success": False, "error": "already_in_club"}
-
     existing_request = db.session.query(Request).filter_by(
         user_id=user_id, club_id=club_id
     ).first()
@@ -100,3 +92,19 @@ def request_join(club_id):
     db.session.commit()
 
     return {"success": True, "message": "join_request_created"}
+
+def leave_club(club_id):
+    """
+    Laat de huidige gebruiker een club verlaten. Mag alleen als die in die club zit.
+    """
+    user_id = int(g.current_user["sub"])
+
+    member = db.session.query(Member).filter_by(user_id=user_id, club_id=club_id).first()
+    if not member:
+        return {"success": False, "error": "not_a_member"}
+
+    db.session.delete(member)
+    db.session.commit()
+
+    return {"success": True, "message": "left_club"}
+

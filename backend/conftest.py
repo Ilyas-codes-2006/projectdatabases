@@ -1,12 +1,4 @@
 import pytest
-from sqlalchemy import text
-from app import create_app
-from db import db as _db, User, PasswordResetToken
-
-TEST_DB_CONNSTR = "postgresql+psycopg://app:@localhost:5432/matchup_test"
-
-
-import pytest
 from app import create_app
 from db import db as _db, User,Member, PasswordResetToken
 

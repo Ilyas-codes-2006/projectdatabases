@@ -7,14 +7,13 @@ type Club = {
   name: string;
   city: string;
   sports: string[];
-  request_status: "none" | "pending" | "accepted" | "member";
+  request_status: "none" | "pending" | "member";
 };
 
 export default function Clubs() {
   const { message, clearMessage, showMessage } = useMessage();
   const [clubs, setClubs] = useState<Club[]>([]);
   const [clubsLoading, setClubsLoading] = useState(false);
-  const [userClub, setUserClub] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -27,7 +26,6 @@ export default function Clubs() {
         const data = await res.json();
         if (data.success) {
           setClubs(data.clubs);
-          setUserClub(data.user_club);
         }
       } catch (err) {
         console.error("Error fetching clubs:", err);
@@ -54,8 +52,7 @@ export default function Clubs() {
             prev.map((c) => c.id === club_id ? { ...c, request_status: "pending" } : c)
         );
       } else {
-        if (data.error === "already_in_club") showMessage("You are already in a club!", "error");
-        else if (data.error === "club_not_found") showMessage("Club not found", "error");
+        if (data.error === "club_not_found") showMessage("Club not found", "error");
         else if (data.error === "request_already_exists") showMessage("Request already sent!", "error");
         else showMessage(data.error || "Failed to request join", "error");
       }
@@ -66,13 +63,38 @@ export default function Clubs() {
     }
   };
 
+  const handleLeaveClub = async (club_id: number) => {
+    setLoading(true);
+    clearMessage();
+    try {
+      const res = await fetch(`/api/clubs/${club_id}/leave`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        showMessage("You have left the club", "success");
+        setClubs((prev) =>
+            prev.map((c) => c.id === club_id ? { ...c, request_status: "none" } : c)
+        );
+      } else {
+        if (data.error === "club_not_found") showMessage("Club not found", "error");
+        else if (data.error === "not_a_member") showMessage("You are not a member of this club", "error");
+        else showMessage(data.error || "Failed to leave club", "error");
+      }
+    } catch {
+      showMessage("Could not connect to server", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const getButtonLabel = (club: Club): string => {
     if (club.request_status === "member") return "Leave";
     if (club.request_status === "pending") return "Request pending";
-    if (club.request_status === "accepted") return "Member";
-    if (userClub !== null) return "Already in a club";
     return "Join";
   };
+
 
   return (
       <div className="auth-wrapper">
@@ -98,18 +120,19 @@ export default function Clubs() {
                       </div>
                       <button
                           className={club.request_status === "member" ? "btn-secondary" : "btn-primary"}
-                          style={{ padding: "8px 20px", fontSize: "0.9rem" }}
-                          disabled={loading || club.request_status === "pending" || club.request_status === "accepted" || (userClub !== null && club.request_status !== "member")}
+                          style={{padding: "8px 20px", fontSize: "0.9rem"}}
+                          disabled={loading || club.request_status === "pending"}
                           onClick={() => {
                             if (club.request_status === "member") {
-                              // leave club (not yet implemented)
-                            } else if (userClub === null) {
+                                handleLeaveClub(club.id);
+                            } else if (club.request_status === "none") {
                               handleRequestJoinClub(club.id);
                             }
                           }}
                       >
                         {getButtonLabel(club)}
                       </button>
+
                     </div>
                 ))}
               </div>
