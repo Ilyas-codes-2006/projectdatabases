@@ -76,6 +76,13 @@ def request_join(club_id):
     if not club:
         return {"success": False, "error": "club_not_found"}
 
+    # Als de gebruiker al lid is van deze club, geen nieuwe aanvraag aanmaken
+    existing_membership = db.session.query(Member).filter_by(
+        user_id=user_id, club_id=club_id
+    ).first()
+    if existing_membership:
+        return {"success": False, "error": "already_in_club"}
+
     existing_request = db.session.query(Request).filter_by(
         user_id=user_id, club_id=club_id
     ).first()

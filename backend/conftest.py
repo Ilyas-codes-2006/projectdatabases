@@ -1,6 +1,6 @@
 import pytest
 from app import create_app
-from db import db as _db, User,Member, PasswordResetToken
+from db import db as _db, User,Member, PasswordResetToken, Request
 
 TEST_DB_CONNSTR = "postgresql+psycopg://app:@localhost:5432/matchup_test"
 
@@ -44,6 +44,7 @@ def clean_users_db(app):
     """
     with app.app_context():
         PasswordResetToken.query.delete()
+        Request.query.delete()
         Member.query.delete()
         User.query.delete()
         _db.session.commit()
@@ -51,5 +52,7 @@ def clean_users_db(app):
     # Optioneel ook na de test opruimen
     with app.app_context():
         PasswordResetToken.query.delete()
+        Request.query.delete()
+        Member.query.delete()
         User.query.delete()
         _db.session.commit()
