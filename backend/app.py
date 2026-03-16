@@ -182,6 +182,10 @@ def create_app(test_config=None):
             db.session.commit()
             
             return jsonify({"message": f"User {user_name} deleted successfully"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+
     @app.route("/api/admin/users/<int:user_id>/details", methods=["GET"])
     @token_required
     @admin_required
