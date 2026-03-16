@@ -285,7 +285,7 @@ const handleDelete = async (userId: number) => {
                         <td>
                           <button
                             className="edit-btn"
-                            onClick={() => alert("Edit user " + user.id)}
+                            onClick={() => openEdit(user)}
                             style={{ marginRight: "8px" }}
                           >
                             Edit
