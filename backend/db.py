@@ -70,10 +70,10 @@ class TeamMember(db.Model):
     __tablename__ = 'team_member'
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    member_id = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
 
     __table_args__ = (
-        UniqueConstraint('team_id', 'user_id', name='uq_team_user'),
+        UniqueConstraint('team_id', 'member_id', name='uq_team_member'),
     )
 
 class Availability(db.Model):
