@@ -1,5 +1,4 @@
 server {
-    listen 80;
     server_name 34.38.183.107 team5.ua-ppdb.com;
 
     # Frontend (Vite build output)
@@ -16,4 +15,23 @@ server {
     location / {
         try_files $uri /index.html;
     }
+
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/team5.ua-ppdb.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/team5.ua-ppdb.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+server {
+    if ($host = team5.ua-ppdb.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80;
+    server_name 34.38.183.107 team5.ua-ppdb.com;
+    return 404; # managed by Certbot
+
+
 }
