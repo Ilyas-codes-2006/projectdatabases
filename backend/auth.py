@@ -133,11 +133,10 @@ def request_password_reset(email: str) -> dict:
     # Verwijder eventuele oude tokens
     PasswordResetToken.query.filter_by(user_id=user.id).delete()
 
-    # Gebruik cexpires_at in plaats van expires_at, conform jouw model
     new_token = PasswordResetToken(
         user_id=user.id,
         token=token,
-        cexpires_at=expires_at,
+        expires_at=expires_at,
         created_at=datetime.now(timezone.utc)
     )
 
@@ -185,7 +184,7 @@ def reset_password_with_token(token: str, new_password: str) -> dict:
     # 1. Combine the date/time from DB with UTC awareness
     # Note: We use .combine if it's still coming back as a date,
     # but with db.DateTime, it will be a datetime object.
-    expires_at = reset_token.cexpires_at
+    expires_at = reset_token.expires_at
 
     # Ensure it is a datetime object and add UTC info if missing
     if isinstance(expires_at, datetime):
@@ -200,7 +199,7 @@ def reset_password_with_token(token: str, new_password: str) -> dict:
         return {'success': False, 'error': 'Deze resetlink is verlopen.'}
 
     # 3. Update password
-    user = User.query.get(reset_token.user_id)
+    user = db.session.get(User, reset_token.user_id)
     if user:
         user.password = generate_password_hash(new_password)
         reset_token.used = True
