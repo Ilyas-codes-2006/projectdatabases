@@ -138,6 +138,54 @@ def create_app(test_config=None):
             })
         return jsonify(user_list), 200
 
+    @app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
+    @token_required
+    @admin_required
+    def delete_user(user_id):
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        # No selfDelete
+        current_admin_id = int(g.current_user['sub'])
+        if user.id == current_admin_id:
+            return jsonify({"error": "You cannot delete yourself"}), 400
+
+        user_name = f"{user.first_name} {user.last_name}"
+        
+        try:
+            # Link is: User -> Member
+            member_ids = [m.id for m in Member.query.filter_by(user_id=user_id).all()]
+            
+            if member_ids:
+                # TeamMember links to Member, NOT directly to User
+                team_members = TeamMember.query.filter(TeamMember.member_id.in_(member_ids)).all()
+                team_member_ids = [tm.id for tm in team_members]
+                
+                if team_member_ids:
+                    Availability.query.filter(Availability.team_member_id.in_(team_member_ids)).delete(synchronize_session=False)
+                
+                TeamMember.query.filter(TeamMember.member_id.in_(member_ids)).delete(synchronize_session=False)
+
+            Member.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+            
+            PasswordResetToken.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+            Request.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+
+            # Nullify matches reported_by to keep history
+            Match.query.filter_by(reported_by=user_id).update({Match.reported_by: None}, synchronize_session=False)
+
+            # Force FLUSH to ensure dependent rows are gone
+            db.session.flush()
+
+            db.session.delete(user)
+            db.session.commit()
+            
+            return jsonify({"message": f"User {user_name} deleted successfully"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+
     @app.route("/api/admin/users/<int:user_id>/details", methods=["GET"])
     @token_required
     @admin_required
@@ -274,6 +322,10 @@ def create_app(test_config=None):
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
 
+        except Exception as e:
+            db.session.rollback()
+            print(f"Delete error: {e}")
+            return jsonify({"error": "Could not delete user. Database error.", "details": str(e)}), 500
 
     # ---------------------------------------------------------------------------
     # Profile routes
