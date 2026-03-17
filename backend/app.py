@@ -458,18 +458,14 @@ def create_app(test_config=None):
         return jsonify(teams_data) #return als JSOn
 
     @app.post("/api/teams")
+    @token_required
     def new_team():
-        token = request.headers.get('Authorization', '').replace('Bearer ', '')
-        if not token:
-            return jsonify({"error": "Missing token"}), 401
-        try:
-            payload = jwt.decode(token, config['jwt_secret'], algorithms=[config['jwt_algorithm']])
-            user_id = payload['sub']
-        except Exception:
-            return jsonify({"error": "Invalid token"}), 401
+        user_id = g.current_user["sub"]
+
         data = request.get_json()
         if not data or 'team_name' not in data:
             return jsonify({"error": "team_name is required"}), 400
+
         team_data = create_team(data['team_name'], user_id)
         return jsonify(team_data)
 
