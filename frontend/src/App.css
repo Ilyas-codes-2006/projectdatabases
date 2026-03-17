@@ -654,3 +654,34 @@ body {
   font-size: 0.85rem;
   margin-top: 0.5rem;
 }
+
+.edit-menu{
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  background-color: var(--card-bg);
+  border-radius: 8px;
+  display: flex;
+  gap: 0.5rem;
+  width: max-content;
+  justify-content: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.btn-inline {
+  background: var(--green-pale);
+  color: var(--dark);
+  border: 1px solid var(--green-light);
+  padding: 0.3rem 0.6rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-inline:hover {
+  background-color: var(--green-light);
+  color: var(--white);
+}
