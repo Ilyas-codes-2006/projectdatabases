@@ -207,3 +207,49 @@ def reset_password_with_token(token: str, new_password: str) -> dict:
         return {'success': True}
 
     return {'success': False, 'error': 'Gebruiker niet gevonden.'}
+
+def change_user_email(user_id, new_email, password):
+    user = db.session.get(User, user_id)
+    if not user:
+        return {"success": False, "error": "User not found"}
+
+    # Wachtwoord check zoals in login_user
+    if not check_password_hash(user.password, password):
+        return {"success": False, "error": "Incorrect password"}
+
+    # Controleer of het nieuwe e-mailadres al bestaat
+    if db.session.query(User).filter(User.email == new_email).first():
+        return {"success": False, "error": "Email already in use"}
+
+    # Update e-mail
+    user.email = new_email
+    try:
+        db.session.commit()
+        return {"success": True, "message": "Email updated successfully"}
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "error": str(e)}
+
+def change_user_name(user_id, new_first_name, new_last_name, password):
+    user = db.session.get(User, user_id)
+    if not user:
+        return {"success": False, "error": "User not found"}
+
+    # check wachtwoord zoals bij e-mail
+    if not check_password_hash(user.password, password):
+        return {"success": False, "error": "Incorrect password"}
+
+    # Check of de naam hetzelfde is
+    if (user.first_name.lower() == new_first_name.lower() and
+        user.last_name.lower() == new_last_name.lower()):
+        return {"success": False, "error": "New name is the same as current"}
+
+    # Update de naam
+    user.first_name = new_first_name
+    user.last_name = new_last_name
+    try:
+        db.session.commit()
+        return {"success": True, "message": "Name updated successfully"}
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "error": str(e)}
