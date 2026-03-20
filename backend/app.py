@@ -6,7 +6,7 @@ from config import config_data as config
 from datetime import date
 from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
-    admin_required
+    admin_required,change_user_email, change_user_name
 from teams import show_teams, create_team, join_team
 from clubs import show_clubs, leave_club, request_join
 
@@ -493,6 +493,33 @@ def create_app(test_config=None):
     def leave_club_(club_id):
         result = leave_club(club_id)
         return jsonify(result)
+
+    @app.route("/api/profile/change-email", methods=["PUT"])
+    @token_required
+    def change_email():
+        data = request.get_json()
+        user_id = g.current_user['sub']
+        if not data or 'new_email' not in data or 'password' not in data:
+            return jsonify({"error": "new_email and password are required"}), 400
+        result = change_user_email(user_id, data['new_email'], data['password'])
+        if result['success']:
+            return jsonify({"message": result['message']}), 200
+        else:
+            return jsonify({"error": result['error']}), 400
+
+    @app.route("/api/profile/change-name", methods=["PUT"])
+    @token_required
+    def change_name():
+        user_id = g.current_user['sub']
+        data = request.get_json()
+        if not data or 'new_first_name' not in data or 'new_last_name' not in data or 'password' not in data:
+            return jsonify({"error": "new_first_name, new_last_name, and password are required"}), 400
+
+        result = change_user_name(user_id, data['new_first_name'], data['new_last_name'], data['password'])
+        if result['success']:
+            return jsonify({"message": result['message']}), 200
+        else:
+            return jsonify({"error": result['error']}), 400
 
     return app
 

@@ -84,7 +84,7 @@ def join_team(team_id):
         club = db.session.query(Club).first()
         if not club:
             return {"success": False, "error": "no_clubs_exist"}
-        member = Member(user_id=user_id, club_id=None, joined_at=date.today())
+        member = Member(user_id=user_id, club_id=club.id, joined_at=date.today())
         db.session.add(member)
         db.session.commit()
 
