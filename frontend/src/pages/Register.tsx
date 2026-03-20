@@ -69,32 +69,32 @@ export default function Register() {
         <form onSubmit={handleRegister} className="auth-form">
           <div className="form-row">
             <div className="form-group">
-              <label>Voornaam</label>
-              <input type="text" placeholder="Jan" required value={registerData.first_name} onChange={update("first_name")} />
+              <label htmlFor="register-firstname">Voornaam</label>
+              <input id="register-firstname" type="text" placeholder="Jan" required value={registerData.first_name} onChange={update("first_name")} />
             </div>
             <div className="form-group">
-              <label>Achternaam</label>
-              <input type="text" placeholder="Janssen" required value={registerData.last_name} onChange={update("last_name")} />
-            </div>
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label>E-mailadres</label>
-              <input type="email" placeholder="jan@voorbeeld.com" required value={registerData.email} onChange={update("email")} />
-            </div>
-            <div className="form-group">
-              <label>Geboortedatum</label>
-              <input type="date" required value={registerData.date_of_birth} onChange={update("date_of_birth")} />
+              <label htmlFor="register-lastname">Achternaam</label>
+              <input id="register-lastname" type="text" placeholder="Janssen" required value={registerData.last_name} onChange={update("last_name")} />
             </div>
           </div>
           <div className="form-row">
             <div className="form-group">
-              <label>Wachtwoord</label>
-              <input type="password" placeholder="Min. 8 tekens" required value={registerData.password} onChange={update("password")} />
+              <label htmlFor="register-email">E-mailadres</label>
+              <input id="register-email" type="email" placeholder="jan@voorbeeld.com" required value={registerData.email} onChange={update("email")} />
             </div>
             <div className="form-group">
-              <label>Bevestig wachtwoord</label>
-              <input type="password" placeholder="Herhaal wachtwoord" required value={registerData.confirm_password} onChange={update("confirm_password")} />
+              <label htmlFor="register-dob">Geboortedatum</label>
+              <input id="register-dob" type="date" required value={registerData.date_of_birth} onChange={update("date_of_birth")} />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="register-password">Wachtwoord</label>
+              <input id="register-password" type="password" placeholder="Min. 8 tekens" required value={registerData.password} onChange={update("password")} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="register-password-confirm">Bevestig wachtwoord</label>
+              <input id="register-password-confirm" type="password" placeholder="Herhaal wachtwoord" required value={registerData.confirm_password} onChange={update("confirm_password")} />
             </div>
           </div>
           <button type="submit" className="btn-submit" disabled={loading}>
