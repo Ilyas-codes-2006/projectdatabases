@@ -16,6 +16,7 @@
   --card-bg: rgba(255,255,255,0.04);
   --border: rgba(255,255,255,0.1);
   --radius: 12px;
+  --navbar-height: 64px;
 }
 
 body {
@@ -93,7 +94,7 @@ body {
 
 .message-banner {
   position: fixed;
-  top: 70px; /* net onder de navbar */
+  top: calc(var(--navbar-height) + 8px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -104,8 +105,9 @@ body {
   align-items: center;
   justify-content: center;
   gap: 12px;
+  width: max-content;
   min-width: 300px;
-  max-width: 600px;
+  max-width: min(600px, 90vw);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   animation: slideDown 0.3s ease;
 }
@@ -177,11 +179,6 @@ body {
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(24px); }
   to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideInRight {
-  from { opacity: 0; transform: translateX(40px); }
-  to   { opacity: 1; transform: translateX(0); }
 }
 
 .hero-eyebrow {
@@ -656,4 +653,35 @@ body {
   color: #ff6b6b;
   font-size: 0.85rem;
   margin-top: 0.5rem;
+}
+
+.edit-menu {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  background-color: var(--card-bg);
+  border-radius: 8px;
+  display: flex;
+  gap: 0.5rem;
+  width: max-content;
+  justify-content: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.btn-inline {
+  background: var(--green-pale);
+  color: var(--dark);
+  border: 1px solid var(--green-light);
+  padding: 0.3rem 0.6rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-inline:hover {
+  background-color: var(--green-light);
+  color: var(--white);
 }

@@ -8,6 +8,9 @@ export interface Message {
 export function useMessage() {
   const [message, setMessage] = useState<Message | null>(null);
   const clearMessage = () => setMessage(null);
-  const showMessage = (text: string, type: "error" | "success") => setMessage({ text, type });
+  const showMessage = (text: string, type: "error" | "success") => {
+    setMessage({ text, type });
+    setTimeout(() => setMessage(null), 5000);
+  };
   return { message, setMessage, clearMessage, showMessage };
 }

@@ -6,9 +6,9 @@ from config import config_data as config
 from datetime import date
 from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
-    admin_required
+    admin_required, change_user_email, change_user_name
 from teams import show_teams, create_team, join_team
-from clubs import show_clubs, request_new_club, request_join_club, review_join_request
+from clubs import show_clubs, request_new_club, request_join_club, request_join, review_join_request, leave_club
 
 from flask import Flask
 from flask_cors import CORS
@@ -108,7 +108,6 @@ def create_app(test_config=None):
         else:
             return jsonify({"error": result['error']}), 400
 
-
     @app.route("/api/admin/users", methods=["GET"])
     @token_required
     @admin_required
@@ -138,7 +137,182 @@ def create_app(test_config=None):
             })
         return jsonify(user_list), 200
 
+    @app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
+    @token_required
+    @admin_required
+    def delete_user(user_id):
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
+        # No selfDelete
+        current_admin_id = int(g.current_user['sub'])
+        if user.id == current_admin_id:
+            return jsonify({"error": "You cannot delete yourself"}), 400
+
+        user_name = f"{user.first_name} {user.last_name}"
+
+        try:
+            member_ids = [m.id for m in Member.query.filter_by(user_id=user_id).all()]
+
+            if member_ids:
+                team_members = TeamMember.query.filter(TeamMember.member_id.in_(member_ids)).all()
+                team_member_ids = [tm.id for tm in team_members]
+
+                if team_member_ids:
+                    Availability.query.filter(Availability.team_member_id.in_(team_member_ids)).delete(synchronize_session=False)
+
+                TeamMember.query.filter(TeamMember.member_id.in_(member_ids)).delete(synchronize_session=False)
+
+            Member.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+
+            PasswordResetToken.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+            Request.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+
+            Match.query.filter_by(reported_by=user_id).update({Match.reported_by: None}, synchronize_session=False)
+
+            db.session.flush()
+
+            db.session.delete(user)
+            db.session.commit()
+
+            return jsonify({"message": f"User {user_name} deleted successfully"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/admin/users/<int:user_id>/details", methods=["GET"])
+    @token_required
+    @admin_required
+    def get_user_details(user_id):
+        """Haal huidige club en team op van een specifieke gebruiker."""
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({"error": "Gebruiker niet gevonden"}), 404
+
+        member = db.session.query(Member).filter_by(user_id=user_id).first()
+
+        club_id = None
+        team_id = None
+
+        if member:
+            club_id = member.club_id
+            team_member = db.session.query(TeamMember).filter_by(member_id=member.id).first()
+            if team_member:
+                team_id = team_member.team_id
+
+        return jsonify({"club_id": club_id, "team_id": team_id}), 200
+
+    @app.route("/api/admin/clubs", methods=["GET"])
+    @token_required
+    @admin_required
+    def list_all_clubs():
+        """Haal alle clubs op voor de admin dropdown."""
+        clubs = db.session.query(Club).all()
+        return jsonify([
+            {"id": c.id, "name": c.name, "city": c.city}
+            for c in clubs
+        ]), 200
+
+    @app.route("/api/admin/teams", methods=["GET"])
+    @token_required
+    @admin_required
+    def list_all_teams():
+        """Haal alle teams op met hun ledenaantal voor de admin dropdown."""
+        teams = db.session.query(
+            Team.id,
+            Team.name,
+            db.func.count(TeamMember.id).label("member_count")
+        ).outerjoin(TeamMember, TeamMember.team_id == Team.id).group_by(Team.id).all()
+
+        return jsonify([
+            {"id": t.id, "name": t.name, "member_count": t.member_count}
+            for t in teams
+        ]), 200
+
+    @app.route("/api/admin/users/<int:user_id>/club", methods=["PUT"])
+    @token_required
+    @admin_required
+    def update_user_club(user_id):
+        """
+        Pas de club van een gebruiker aan.
+        Stuur club_id: null om de gebruiker uit zijn club te verwijderen.
+        """
+        data = request.get_json()
+        if data is None:
+            return jsonify({"error": "Geen data meegegeven"}), 400
+
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({"error": "Gebruiker niet gevonden"}), 404
+
+        new_club_id = data.get("club_id")
+
+        if new_club_id is not None:
+            club = db.session.get(Club, new_club_id)
+            if not club:
+                return jsonify({"error": "Club niet gevonden"}), 404
+
+        member = db.session.query(Member).filter_by(user_id=user_id).first()
+        if member:
+            member.club_id = new_club_id
+        else:
+            from datetime import date
+            member = Member(user_id=user_id, club_id=new_club_id, joined_at=date.today())
+            db.session.add(member)
+
+        try:
+            db.session.commit()
+            return jsonify({"message": "Club succesvol bijgewerkt"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/admin/users/<int:user_id>/team", methods=["PUT"])
+    @token_required
+    @admin_required
+    def update_user_team(user_id):
+        """
+        Pas het team van een gebruiker aan.
+        Stuur team_id: null om de gebruiker uit zijn team te verwijderen.
+        """
+        data = request.get_json()
+        if data is None:
+            return jsonify({"error": "Geen data meegegeven"}), 400
+
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({"error": "Gebruiker niet gevonden"}), 404
+
+        new_team_id = data.get("team_id")
+
+        if new_team_id is not None:
+            team = db.session.get(Team, new_team_id)
+            if not team:
+                return jsonify({"error": "Team niet gevonden"}), 404
+
+            count = db.session.query(TeamMember).filter_by(team_id=new_team_id).count()
+            if count >= 2:
+                return jsonify({"error": "Dit team zit al vol (max 2 leden)"}), 400
+
+        from datetime import date
+        member = db.session.query(Member).filter_by(user_id=user_id).first()
+        if not member:
+            member = Member(user_id=user_id, club_id=None, joined_at=date.today())
+            db.session.add(member)
+            db.session.flush()
+
+        db.session.query(TeamMember).filter_by(member_id=member.id).delete()
+
+        if new_team_id is not None:
+            db.session.add(TeamMember(team_id=new_team_id, member_id=member.id))
+
+        try:
+            db.session.commit()
+            return jsonify({"message": "Team succesvol bijgewerkt"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
 
     # ---------------------------------------------------------------------------
     # Profile routes
@@ -184,28 +358,18 @@ def create_app(test_config=None):
 
     @app.route("/api/auth/forgot-password", methods=["POST"])
     def forgot_password():
-        """
-        Stap 1: gebruiker geeft zijn e-mail op.
-        We sturen altijd dezelfde response, ook als het e-mail niet bestaat
-        (voorkomt user enumeration).
-        """
         data = request.get_json()
         if not data or 'email' not in data:
             return jsonify({"error": "E-mailadres is verplicht"}), 400
 
         request_password_reset(data['email'])
 
-        # Altijd dezelfde neutrale boodschap teruggeven
         return jsonify({
             "message": "Als dit e-mailadres bij ons bekend is, ontvang je binnen enkele minuten een resetlink."
         }), 200
 
     @app.route("/api/auth/reset-password", methods=["POST"])
     def reset_password():
-        """
-        Stap 2: gebruiker heeft de link in de mail geopend en vult
-        zijn nieuwe wachtwoord in.
-        """
         data = request.get_json()
         if not data or 'token' not in data or 'new_password' not in data:
             return jsonify({"error": "Token en nieuw wachtwoord zijn verplicht"}), 400
@@ -268,21 +432,17 @@ def create_app(test_config=None):
     @token_required
     def get_teams():
         teams_data = show_teams()
-        return jsonify(teams_data) #return als JSOn
+        return jsonify(teams_data)
 
     @app.post("/api/teams")
+    @token_required
     def new_team():
-        token = request.headers.get('Authorization', '').replace('Bearer ', '')
-        if not token:
-            return jsonify({"error": "Missing token"}), 401
-        try:
-            payload = jwt.decode(token, config['jwt_secret'], algorithms=[config['jwt_algorithm']])
-            user_id = payload['sub']
-        except Exception:
-            return jsonify({"error": "Invalid token"}), 401
+        user_id = g.current_user["sub"]
+
         data = request.get_json()
         if not data or 'team_name' not in data:
             return jsonify({"error": "team_name is required"}), 400
+
         team_data = create_team(data['team_name'], user_id)
         return jsonify(team_data)
 
@@ -336,7 +496,6 @@ def create_app(test_config=None):
     @token_required
     def get_club_members(club_id):
         user_id = int(g.current_user['sub'])
-        # Only club admin of this club can view members
         requester = db.session.query(Member).filter_by(user_id=user_id, club_id=club_id, is_admin=True).first()
         if not requester and not g.current_user.get('is_admin'):
             return jsonify({"error": "forbidden"}), 403
@@ -371,11 +530,16 @@ def create_app(test_config=None):
             return jsonify(result), 201
         return jsonify({"error": result.get("error")}), 400
 
+    @app.post("/api/clubs/<int:club_id>/request_join")
+    @token_required
+    def join_club_(club_id):
+        result = request_join(club_id)
+        return jsonify(result)
+
     @app.get("/api/clubs/<int:club_id>/join-requests")
     @token_required
     def get_join_requests(club_id):
         user_id = int(g.current_user['sub'])
-        # Must be club admin
         admin_member = db.session.query(Member).filter_by(
             user_id=user_id, club_id=club_id, is_admin=True
         ).first()
@@ -415,7 +579,6 @@ def create_app(test_config=None):
     @token_required
     def request_club():
         import json, base64
-        # Accepteer zowel JSON als multipart/form-data
         if request.content_type and "multipart/form-data" in request.content_type:
             club_name = (request.form.get("club_name") or "").strip()
             city      = (request.form.get("city") or "").strip()
@@ -480,12 +643,45 @@ def create_app(test_config=None):
     def review_club_request(request_id):
         from clubs import review_club_request as do_review
         data = request.get_json()
-        action = data.get("action")  # "approve" or "reject"
+        action = data.get("action")
         if action not in ("approve", "reject"):
             return jsonify({"error": "action must be 'approve' or 'reject'"}), 400
         result = do_review(request_id, action, mail)
         if result["success"]:
             return jsonify(result), 200
         return jsonify({"error": result.get("error")}), 400
+
+    @app.post("/api/clubs/<int:club_id>/leave")
+    @token_required
+    def leave_club_(club_id):
+        result = leave_club(club_id)
+        return jsonify(result)
+
+    @app.route("/api/profile/change-email", methods=["PUT"])
+    @token_required
+    def change_email():
+        data = request.get_json()
+        user_id = g.current_user['sub']
+        if not data or 'new_email' not in data or 'password' not in data:
+            return jsonify({"error": "new_email and password are required"}), 400
+        result = change_user_email(user_id, data['new_email'], data['password'])
+        if result['success']:
+            return jsonify({"message": result['message']}), 200
+        else:
+            return jsonify({"error": result['error']}), 400
+
+    @app.route("/api/profile/change-name", methods=["PUT"])
+    @token_required
+    def change_name():
+        user_id = g.current_user['sub']
+        data = request.get_json()
+        if not data or 'new_first_name' not in data or 'new_last_name' not in data or 'password' not in data:
+            return jsonify({"error": "new_first_name, new_last_name, and password are required"}), 400
+
+        result = change_user_name(user_id, data['new_first_name'], data['new_last_name'], data['password'])
+        if result['success']:
+            return jsonify({"message": result['message']}), 200
+        else:
+            return jsonify({"error": result['error']}), 400
 
     return app

@@ -9,6 +9,7 @@ type Club = {
   city: string;
   sports: string[];
   has_pending_request: boolean;
+  request_status: "none" | "pending" | "member";
 };
 
 type AttachedFile = {
@@ -21,6 +22,7 @@ export default function Clubs() {
   const { isClubAdmin } = useAuth();
   const [clubs, setClubs] = useState<Club[]>([]);
   const [clubsLoading, setClubsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [userClub, setUserClub] = useState<number | null>(null);
 
   // New club request modal
@@ -116,7 +118,7 @@ export default function Clubs() {
         const data = await res.json();
         if (data.success) {
           setClubs(data.clubs);
-          setUserClub(data.user_club);
+          setUserClub(data.user_club ?? null);
         }
       } catch (err) {
         console.error("Error fetching clubs:", err);
@@ -145,7 +147,11 @@ export default function Clubs() {
       if (data.success) {
         showMessage(`Aanvraag verstuurd naar de club admin van ${joinTarget.name}!`, "success");
         setClubs((prev) =>
-          prev.map((c) => c.id === joinTarget.id ? { ...c, has_pending_request: true } : c)
+          prev.map((c) =>
+            c.id === joinTarget.id
+              ? { ...c, has_pending_request: true, request_status: "pending" }
+              : c
+          )
         );
         setJoinTarget(null);
         setJoinMotivation("");
@@ -161,6 +167,35 @@ export default function Clubs() {
       showMessage("Kon geen verbinding maken met de server", "error");
     } finally {
       setJoinLoading(false);
+    }
+  };
+
+  const handleLeaveClub = async (club_id: number) => {
+    setLoading(true);
+    clearMessage();
+    try {
+      const res = await fetch(`/api/clubs/${club_id}/leave`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        showMessage("You have left the club", "success");
+        setClubs((prev) =>
+          prev.map((c) =>
+            c.id === club_id ? { ...c, request_status: "none" } : c
+          )
+        );
+        setUserClub(null);
+      } else {
+        if (data.error === "club_not_found") showMessage("Club not found", "error");
+        else if (data.error === "not_a_member") showMessage("You are not a member of this club", "error");
+        else showMessage(data.error || "Failed to leave club", "error");
+      }
+    } catch {
+      showMessage("Could not connect to server", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -189,15 +224,15 @@ export default function Clubs() {
         </div>
 
         {!isClubAdmin && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
-          <button
-            className="btn-secondary"
-            style={{ padding: "8px 20px", fontSize: "0.9rem", display: "flex", alignItems: "center", gap: "6px" }}
-            onClick={() => setShowModal(true)}
-          >
-            <span>➕</span> Nieuwe club aanvragen
-          </button>
-        </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+            <button
+              className="btn-secondary"
+              style={{ padding: "8px 20px", fontSize: "0.9rem", display: "flex", alignItems: "center", gap: "6px" }}
+              onClick={() => setShowModal(true)}
+            >
+              <span>➕</span> Nieuwe club aanvragen
+            </button>
+          </div>
         )}
 
         {clubsLoading ? (
@@ -205,8 +240,8 @@ export default function Clubs() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {clubs.map((club) => {
-              const isMember = userClub === club.id;
-              const isPending = club.has_pending_request;
+              const isMember = club.request_status === "member";
+              const isPending = club.request_status === "pending" || club.has_pending_request;
               const inOtherClub = userClub !== null && !isMember;
 
               return (
@@ -219,11 +254,14 @@ export default function Clubs() {
                   </div>
 
                   {isMember ? (
-                    <span style={{
-                      fontSize: "0.8rem", fontWeight: 600, padding: "5px 14px", borderRadius: "20px",
-                      background: "rgba(64,145,108,0.15)", color: "var(--green-light)",
-                      border: "1px solid rgba(64,145,108,0.3)",
-                    }}>✓ Lid</span>
+                    <button
+                      className="btn-secondary"
+                      style={{ padding: "8px 20px", fontSize: "0.9rem" }}
+                      disabled={loading}
+                      onClick={() => handleLeaveClub(club.id)}
+                    >
+                      Leave
+                    </button>
                   ) : isPending ? (
                     <span style={{
                       fontSize: "0.8rem", fontWeight: 600, padding: "5px 14px", borderRadius: "20px",
@@ -250,6 +288,7 @@ export default function Clubs() {
         )}
       </div>
 
+      {/* ── NEW CLUB MODAL ── */}
       {showModal && (
         <div
           style={{
@@ -297,7 +336,6 @@ export default function Clubs() {
             </div>
 
             <div style={{ padding: "1.5rem 2rem 2rem", display: "flex", flexDirection: "column", gap: "1.2rem" }}>
-
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div className="form-group">
                   <label>Clubnaam <span style={{ color: "var(--clay)", textTransform: "none" }}>*</span></label>
@@ -323,7 +361,7 @@ export default function Clubs() {
                 <label>Motivatie <span style={{ color: "var(--text-muted)", textTransform: "none", fontWeight: 400 }}>(optioneel)</span></label>
                 <textarea
                   rows={3}
-                  placeholder="Waarom wil je deze club aanmaken? Geef zoveel mogelijk context aan de admin."
+                  placeholder="Waarom wil je deze club aanmaken?"
                   value={form.motivation}
                   style={{
                     background: "rgba(0,0,0,0.25)", border: "1px solid var(--border)",
@@ -351,18 +389,11 @@ export default function Clubs() {
                 <div
                   onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                   onDragLeave={() => setDragOver(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setDragOver(false);
-                    addFiles(e.dataTransfer.files);
-                  }}
+                  onDrop={(e) => { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files); }}
                   onClick={() => fileInputRef.current?.click()}
                   style={{
                     border: `2px dashed ${dragOver ? "var(--green-light)" : "rgba(255,255,255,0.15)"}`,
-                    borderRadius: "12px",
-                    padding: "1.5rem",
-                    textAlign: "center",
-                    cursor: "pointer",
+                    borderRadius: "12px", padding: "1.5rem", textAlign: "center", cursor: "pointer",
                     background: dragOver ? "rgba(64,145,108,0.08)" : "rgba(0,0,0,0.15)",
                     transition: "all 0.2s",
                   }}
@@ -409,8 +440,7 @@ export default function Clubs() {
                           style={{
                             background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)",
                             borderRadius: "6px", color: "#f87171", cursor: "pointer",
-                            fontSize: "0.8rem", padding: "3px 8px", flexShrink: 0,
-                            fontFamily: "inherit",
+                            fontSize: "0.8rem", padding: "3px 8px", flexShrink: 0, fontFamily: "inherit",
                           }}
                         >✕</button>
                       </div>
@@ -450,7 +480,7 @@ export default function Clubs() {
             background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)",
             display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem",
           }}
-          onClick={(e) => { if (e.target === e.currentTarget) { setJoinTarget(null); setJoinMotivation(""); }}}
+          onClick={(e) => { if (e.target === e.currentTarget) { setJoinTarget(null); setJoinMotivation(""); } }}
         >
           <div style={{
             background: "linear-gradient(160deg, #1e3d2c 0%, #162e22 100%)",
@@ -460,7 +490,6 @@ export default function Clubs() {
             boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
             animation: "fadeUp 0.25s ease both",
           }}>
-            {/* Header */}
             <div style={{
               padding: "1.5rem 1.75rem 1.1rem",
               borderBottom: "1px solid rgba(255,255,255,0.08)",
@@ -484,7 +513,6 @@ export default function Clubs() {
               }}>✕</button>
             </div>
 
-            {/* Body */}
             <div style={{ padding: "1.4rem 1.75rem 1.75rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
               <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.55 }}>
                 Je aanvraag wordt doorgestuurd naar de club admin. Je ontvangt een e-mail zodra je aanvraag beoordeeld is.
