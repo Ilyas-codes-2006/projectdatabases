@@ -19,6 +19,7 @@ export default function Admin() {
   const { message, clearMessage, showMessage } = useMessage();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isAdmin) navigate("/");
@@ -40,7 +41,21 @@ export default function Admin() {
         setLoading(false);
       }
     };
+
+    const fetchPendingCount = async () => {
+      try {
+        const res = await fetch("/api/admin/club-requests", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          setPendingCount(data.requests.filter((r: { status: string }) => r.status === "pending").length);
+        }
+      } catch { /* stil falen */ }
+    };
+
     fetchUsers();
+    fetchPendingCount();
   }, []);
 
   return (
@@ -50,6 +65,40 @@ export default function Admin() {
         <div className="admin-header">
           <h1>Admin Dashboard</h1>
           <p>Manage registered users</p>
+        </div>
+
+        {/* Navigatiekaarten */}
+        <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", flexWrap: "wrap" }}>
+          <button
+            onClick={() => navigate("/admin/club-requests")}
+            style={{
+              display: "flex", alignItems: "center", gap: "0.75rem",
+              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: "12px", padding: "1rem 1.5rem", cursor: "pointer",
+              color: "var(--text)", fontFamily: "inherit", fontSize: "0.95rem",
+              transition: "background 0.15s", textAlign: "left",
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.background = "rgba(64,145,108,0.12)")}
+            onMouseOut={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+          >
+            <span style={{ fontSize: "1.6rem" }}>🏗️</span>
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: "2px" }}>
+                Club-aanvragen
+                {pendingCount !== null && pendingCount > 0 && (
+                  <span style={{
+                    marginLeft: "8px", background: "#f59e0b", color: "#000",
+                    borderRadius: "20px", fontSize: "0.7rem", fontWeight: 700,
+                    padding: "2px 8px",
+                  }}>
+                    {pendingCount} nieuw
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Beoordeel aanvragen voor nieuwe clubs</div>
+            </div>
+            <span style={{ marginLeft: "auto", color: "var(--text-muted)" }}>→</span>
+          </button>
         </div>
         <div className="admin-card">
           <div className="admin-card-header">

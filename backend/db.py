@@ -122,6 +122,32 @@ class Request(db.Model):
     expires_at = db.Column(db.DateTime, nullable=False)
     accepted = db.Column(db.BOOLEAN, default=False) # Naam gelijkgetrokken met ER-diagram
 
+class ClubRequest(db.Model):
+    __tablename__ = 'club_request'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    club_name = db.Column(db.VARCHAR(255), nullable=False)
+    city = db.Column(db.VARCHAR(255), nullable=False)
+    motivation = db.Column(db.TEXT)
+    status = db.Column(db.VARCHAR(50), nullable=False, default='pending')  # pending / approved / rejected
+    created_at = db.Column(db.DATE, nullable=False, default=func.current_date())
+    # JSON list of {filename, mimetype, data_b64}
+    attachments = db.Column(db.TEXT, nullable=True)
+
+class JoinRequest(db.Model):
+    """A user requesting to join an existing club."""
+    __tablename__ = 'join_request'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
+    motivation = db.Column(db.TEXT)
+    status = db.Column(db.VARCHAR(50), nullable=False, default='pending')  # pending / approved / rejected
+    created_at = db.Column(db.DATE, nullable=False, default=func.current_date())
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'club_id', name='uq_join_request_user_club'),
+    )
+
 def apply_match_result(match_id: int):
     """
     Verwerkt het resultaat van een afgeronde match op basis van de individuele ELO van de spelers.

@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { loggedInUser, isAdmin, logout } = useAuth();
+  const { loggedInUser, isAdmin, isClubAdmin, myClubName, logout } = useAuth();
 
   const active = (path: string) => location.pathname === path ? "active" : "";
 
@@ -44,9 +44,20 @@ export default function Navbar() {
             <button className={`nav-btn ${active("/teams")}`} onClick={() => navigate("/teams")}>
               My Team
             </button>
-            <button className={`nav-btn ${active("/clubs")}`} onClick={() => navigate("/clubs")}>
-              Clubs
-            </button>
+            {isClubAdmin ? (
+              <button
+                className={`nav-btn ${active("/my-club")}`}
+                onClick={() => navigate("/my-club")}
+                title={myClubName ?? "My Club"}
+                style={{ position: "relative" }}
+              >
+                🏟️ My Club
+              </button>
+            ) : (
+              <button className={`nav-btn ${active("/clubs")}`} onClick={() => navigate("/clubs")}>
+                Clubs
+              </button>
+            )}
             <button className={`nav-btn nav-user-btn ${active("/profile")}`} onClick={() => navigate("/profile")}>
               👋 {loggedInUser}
             </button>

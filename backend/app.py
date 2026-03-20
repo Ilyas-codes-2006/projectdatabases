@@ -8,7 +8,7 @@ from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
     admin_required
 from teams import show_teams, create_team, join_team
-from clubs import show_clubs, join_club
+from clubs import show_clubs, request_new_club, request_join_club, review_join_request
 
 from flask import Flask
 from flask_cors import CORS
@@ -292,17 +292,200 @@ def create_app(test_config=None):
         result = join_team(team_id)
         return jsonify(result)
 
+    @app.get("/api/profile/club-status")
+    @token_required
+    def club_status():
+        user_id = int(g.current_user['sub'])
+        member = db.session.query(Member).filter_by(user_id=user_id).first()
+        if member and member.is_admin and member.club_id:
+            club = db.session.get(Club, member.club_id)
+            return jsonify({
+                "is_club_admin": True,
+                "club_id": member.club_id,
+                "club_name": club.name if club else None,
+            }), 200
+        return jsonify({"is_club_admin": False, "club_id": None, "club_name": None}), 200
+
+    @app.get("/api/admin/club-requests/<int:request_id>")
+    @token_required
+    @admin_required
+    def get_club_request_detail(request_id):
+        import json as _json
+        r = db.session.get(ClubRequest, request_id)
+        if not r:
+            return jsonify({"error": "not_found"}), 404
+        user = db.session.get(User, r.user_id)
+        try:
+            attachments = _json.loads(r.attachments) if r.attachments else []
+        except Exception:
+            attachments = []
+        return jsonify({
+            "success": True,
+            "id": r.id,
+            "club_name": r.club_name,
+            "city": r.city,
+            "motivation": r.motivation,
+            "status": r.status,
+            "created_at": r.created_at.isoformat(),
+            "requester_name": f"{user.first_name} {user.last_name}" if user else "?",
+            "requester_email": user.email if user else "?",
+            "attachments": attachments,
+        }), 200
+
+    @app.get("/api/clubs/<int:club_id>/members")
+    @token_required
+    def get_club_members(club_id):
+        user_id = int(g.current_user['sub'])
+        # Only club admin of this club can view members
+        requester = db.session.query(Member).filter_by(user_id=user_id, club_id=club_id, is_admin=True).first()
+        if not requester and not g.current_user.get('is_admin'):
+            return jsonify({"error": "forbidden"}), 403
+        members_q = db.session.query(Member).filter_by(club_id=club_id).all()
+        result = []
+        for m in members_q:
+            u = db.session.get(User, m.user_id)
+            if u:
+                result.append({
+                    "id": u.id,
+                    "first_name": u.first_name,
+                    "last_name": u.last_name,
+                    "email": u.email,
+                    "elo": m.elo,
+                    "is_admin": m.is_admin,
+                })
+        return jsonify({"success": True, "members": result}), 200
+
     @app.get("/api/clubs")
     @token_required
     def get_clubs():
         clubs_data = show_clubs()
         return jsonify(clubs_data)
 
-    @app.post("/api/clubs/<int:club_id>/join")
+    @app.post("/api/clubs/<int:club_id>/join-request")
     @token_required
-    def join_club_(club_id):
-        result = join_club(club_id)
-        return jsonify(result)
+    def request_join_club_(club_id):
+        data = request.get_json() or {}
+        motivation = data.get("motivation", "").strip()
+        result = request_join_club(club_id, motivation, mail)
+        if result["success"]:
+            return jsonify(result), 201
+        return jsonify({"error": result.get("error")}), 400
+
+    @app.get("/api/clubs/<int:club_id>/join-requests")
+    @token_required
+    def get_join_requests(club_id):
+        user_id = int(g.current_user['sub'])
+        # Must be club admin
+        admin_member = db.session.query(Member).filter_by(
+            user_id=user_id, club_id=club_id, is_admin=True
+        ).first()
+        if not admin_member:
+            return jsonify({"error": "forbidden"}), 403
+
+        reqs = db.session.query(JoinRequest).filter_by(club_id=club_id).order_by(
+            JoinRequest.created_at.desc()
+        ).all()
+        result = []
+        for r in reqs:
+            u = db.session.get(User, r.user_id)
+            result.append({
+                "id": r.id,
+                "user_id": r.user_id,
+                "requester_name": f"{u.first_name} {u.last_name}" if u else "?",
+                "requester_email": u.email if u else "?",
+                "motivation": r.motivation,
+                "status": r.status,
+                "created_at": r.created_at.isoformat(),
+            })
+        return jsonify({"success": True, "requests": result}), 200
+
+    @app.post("/api/clubs/join-requests/<int:join_request_id>/review")
+    @token_required
+    def review_join_request_(join_request_id):
+        data = request.get_json() or {}
+        action = data.get("action")
+        if action not in ("approve", "reject"):
+            return jsonify({"error": "action must be 'approve' or 'reject'"}), 400
+        result = review_join_request(join_request_id, action, mail)
+        if result["success"]:
+            return jsonify(result), 200
+        return jsonify({"error": result.get("error")}), 400
+
+    @app.post("/api/clubs/request")
+    @token_required
+    def request_club():
+        import json, base64
+        # Accepteer zowel JSON als multipart/form-data
+        if request.content_type and "multipart/form-data" in request.content_type:
+            club_name = (request.form.get("club_name") or "").strip()
+            city      = (request.form.get("city") or "").strip()
+            motivation = (request.form.get("motivation") or "").strip()
+            files = request.files.getlist("attachments")
+            attachments = []
+            for f in files:
+                if f and f.filename:
+                    data_b64 = base64.b64encode(f.read()).decode("utf-8")
+                    attachments.append({
+                        "filename": f.filename,
+                        "mimetype": f.mimetype or "application/octet-stream",
+                        "data_b64": data_b64,
+                    })
+        else:
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "Invalid request"}), 400
+            club_name  = data.get("club_name", "").strip()
+            city       = data.get("city", "").strip()
+            motivation = data.get("motivation", "").strip()
+            attachments = []
+
+        if not club_name or not city:
+            return jsonify({"error": "club_name and city are required"}), 400
+
+        result = request_new_club(club_name, city, motivation, attachments, mail)
+        if result["success"]:
+            return jsonify(result), 201
+        return jsonify({"error": result.get("error")}), 400
+
+    @app.get("/api/admin/club-requests")
+    @token_required
+    @admin_required
+    def get_club_requests():
+        import json as _json
+        from db import ClubRequest, User
+        requests_q = db.session.query(ClubRequest).order_by(ClubRequest.created_at.desc()).all()
+        result = []
+        for r in requests_q:
+            user = db.session.get(User, r.user_id)
+            try:
+                att_count = len(_json.loads(r.attachments)) if r.attachments else 0
+            except Exception:
+                att_count = 0
+            result.append({
+                "id": r.id,
+                "club_name": r.club_name,
+                "city": r.city,
+                "motivation": r.motivation,
+                "status": r.status,
+                "created_at": r.created_at.isoformat(),
+                "requester_name": f"{user.first_name} {user.last_name}" if user else "?",
+                "requester_email": user.email if user else "?",
+                "attachments_count": att_count,
+            })
+        return jsonify({"success": True, "requests": result}), 200
+
+    @app.post("/api/admin/club-requests/<int:request_id>/review")
+    @token_required
+    @admin_required
+    def review_club_request(request_id):
+        from clubs import review_club_request as do_review
+        data = request.get_json()
+        action = data.get("action")  # "approve" or "reject"
+        if action not in ("approve", "reject"):
+            return jsonify({"error": "action must be 'approve' or 'reject'"}), 400
+        result = do_review(request_id, action, mail)
+        if result["success"]:
+            return jsonify(result), 200
+        return jsonify({"error": result.get("error")}), 400
 
     return app
-

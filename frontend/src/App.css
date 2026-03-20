@@ -179,6 +179,11 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 .hero-eyebrow {
   font-size: 0.8rem; font-weight: 600; letter-spacing: 3px;
   text-transform: uppercase; color: var(--clay);
