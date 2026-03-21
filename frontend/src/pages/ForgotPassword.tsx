@@ -37,7 +37,7 @@ export default function ForgotPassword() {
           <span className="auth-icon">🔑</span>
           <h2>Forgot password</h2>
           <p>
-            Fill in your e-mail. If your e-mail has been registeren, we will
+            Fill in your e-mail. If your e-mail has been registered, we will
             send a mail containing the resetlink.
           </p>
         </div>
