@@ -338,11 +338,6 @@ def create_app(test_config=None):
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
 
-        except Exception as e:
-            db.session.rollback()
-            print(f"Delete error: {e}")
-            return jsonify({"error": "Could not delete user. Database error.", "details": str(e)}), 500
-
     # ---------------------------------------------------------------------------
     # Profile routes
     # ---------------------------------------------------------------------------
