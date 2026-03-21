@@ -39,7 +39,10 @@ def create_team(team_name, user_id):
             return {"success": False, "error": "already_in_team"}
     else:
         # Maak Member record aan als die nog niet bestaat
-        member = Member(user_id=user_id, club_id=None, joined_at=date.today())
+        club = db.session.query(Club).first()
+        if not club:
+            return {"success": False, "error": "no_clubs_exist"}
+        member = Member(user_id=user_id, club_id=club.id, joined_at=date.today())
         db.session.add(member)
         db.session.commit()
 
@@ -78,7 +81,10 @@ def join_team(team_id):
     # Zorg dat de gebruiker een Member record heeft
     member = db.session.query(Member).filter_by(user_id=user_id).first()
     if not member:
-        member = Member(user_id=user_id, club_id=None, joined_at=date.today())
+        club = db.session.query(Club).first()
+        if not club:
+            return {"success": False, "error": "no_clubs_exist"}
+        member = Member(user_id=user_id, club_id=club.id, joined_at=date.today())
         db.session.add(member)
         db.session.commit()
 

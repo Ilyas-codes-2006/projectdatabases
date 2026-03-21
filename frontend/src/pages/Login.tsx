@@ -33,12 +33,14 @@ export default function Login() {
       const data = await res.json();
       if (res.ok) {
         login(data.token, data.name, data.is_admin);
-        navigate("/", { state: { message: `Welkom terug, ${data.name}!`, type: "success" } });
+        navigate("/", {
+          state: { message: `Welcome back, ${data.name}!`, type: "success" },
+        });
       } else {
         if (res.status === 404) return navigate("/404");
         if (res.status === 500) return navigate("/500");
         if (res.status === 502 || res.status === 503) return navigate("/502");
-        showMessage(data.error || "Inloggen mislukt", "error");
+        showMessage(data.error || "Logging in failed!", "error");
       }
     } catch {
       navigate("/502");
@@ -53,40 +55,48 @@ export default function Login() {
       <div className="auth-card">
         <div className="auth-header">
           <span className="auth-icon">🎾</span>
-          <h2>Welkom terug</h2>
-          <p>Log in op je clubaccount</p>
+          <h2>Welcome back!</h2>
+          <p>Log in to your account</p>
         </div>
         <form onSubmit={handleLogin} className="auth-form">
           <div className="form-group">
-            <label>E-mailadres</label>
+            <label htmlFor="login-email">E-mail</label>
             <input
+              id="login-email"
               type="email"
-              placeholder="jij@voorbeeld.com"
+              placeholder="john.doe@example.com"
               required
               value={loginData.email}
-              onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+              onChange={(e) =>
+                setLoginData({ ...loginData, email: e.target.value })
+              }
             />
           </div>
           <div className="form-group">
-            <label>Wachtwoord</label>
+            <label htmlFor="login-password">Password</label>
             <input
+              id="login-password"
               type="password"
-              placeholder="Jouw wachtwoord"
+              placeholder="Your password"
               required
               value={loginData.password}
-              onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+              onChange={(e) =>
+                setLoginData({ ...loginData, password: e.target.value })
+              }
             />
           </div>
           <button type="submit" className="btn-submit" disabled={loading}>
-            {loading ? "Inloggen…" : "Inloggen"}
+            {loading ? "Logging in…" : "Log in"}
           </button>
         </form>
         <p className="auth-switch">
-          <button onClick={() => navigate("/forgot-password")}>Wachtwoord vergeten?</button>
+          <button onClick={() => navigate("/forgot-password")}>
+            Forgot password?
+          </button>
         </p>
         <p className="auth-switch">
-          Nog geen account?{" "}
-          <button onClick={() => navigate("/register")}>Maak er een aan</button>
+          Don't have an account?{" "}
+          <button onClick={() => navigate("/register")}>Create one here</button>
         </p>
       </div>
     </div>

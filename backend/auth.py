@@ -20,6 +20,7 @@ mail = Mail()
 # ---------------------------------------------------------------------------
 
 def register_user(last_name, first_name, password, bio, is_admin, date_of_birth, email):
+    # email should have been validated in app.py register()
     password_hash = generate_password_hash(password)
 
     if User.query.filter_by(email=email).first():
@@ -64,6 +65,7 @@ def _generate_token(user_id: int, email: str, first_name: str, is_admin: bool) -
 
 
 def login_user(email: str, password: str) -> dict:
+    # email should have been validated in app.py in login()
     user = User.query.filter_by(email=email).first()
 
     # We gebruiken user.password omdat dit zo in je db.py model gedefinieerd staat
@@ -207,3 +209,70 @@ def reset_password_with_token(token: str, new_password: str) -> dict:
         return {'success': True}
 
     return {'success': False, 'error': 'Gebruiker niet gevonden.'}
+
+def change_user_email(user_id, new_email, password):
+    user = db.session.get(User, user_id)
+    if not user:
+        return {"success": False, "error": "User not found"}
+
+    # Wachtwoord check zoals in login_user
+    if not check_password_hash(user.password, password):
+        return {"success": False, "error": "Incorrect password"}
+
+    # Controleer of het nieuwe e-mailadres al bestaat
+    if db.session.query(User).filter(User.email == new_email).first():
+        return {"success": False, "error": "Email already in use"}
+
+    # Update e-mail
+    user.email = new_email
+    try:
+        db.session.commit()
+        return {"success": True, "message": "Email updated successfully"}
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "error": str(e)}
+
+def change_user_name(user_id, new_first_name, new_last_name, password):
+    user = db.session.get(User, user_id)
+    if not user:
+        return {"success": False, "error": "User not found"}
+
+    # check wachtwoord zoals bij e-mail
+    if not check_password_hash(user.password, password):
+        return {"success": False, "error": "Incorrect password"}
+
+    # Check of de naam hetzelfde is
+    if (user.first_name.lower() == new_first_name.lower() and
+        user.last_name.lower() == new_last_name.lower()):
+        return {"success": False, "error": "New name is the same as current"}
+
+    # Update de naam
+    user.first_name = new_first_name
+    user.last_name = new_last_name
+    try:
+        db.session.commit()
+        return {"success": True, "message": "Name updated successfully"}
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "error": str(e)}
+def change_user_birthday(user_id, new_birthday, password):
+    user = db.session.get(User, user_id)
+    if not user:
+        return {"success": False, "error": "User not found"}
+
+    # Check wachtwoord
+    if not check_password_hash(user.password, password):
+        return {"success": False, "error": "Incorrect password"}
+
+    # Check of het hetzelfde is
+    if user.date_of_birth == new_birthday:
+        return {"success": False, "error": "New birthday is the same as current"}
+
+    #Verander birthday
+    user.date_of_birth = new_birthday
+    try:
+        db.session.commit()
+        return {"success": True, "message": "Birthday updated successfully"}
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "error": str(e)}
