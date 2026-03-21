@@ -12,6 +12,8 @@ import Teams from "./pages/Teams";
 import JoinTeams from "./pages/JoinTeams";
 import Clubs from "./pages/Clubs";
 import Admin from "./pages/Admin";
+import AdminClubRequests from "./pages/AdminClubRequests";
+import MyClub from "./pages/MyClub";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/notfound";
 import ServerError from "./pages/servererror";
@@ -47,6 +49,8 @@ function Layout() {
         <Route path="/profile/change-name" element={<ChangeName />} />
         <Route path="/profile/change-birthday" element={<ChangeBirthday />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/admin/club-requests" element={<AdminClubRequests />} />
+        <Route path="/my-club" element={<MyClub />} />
         <Route path="/500" element={<ServerError />} />
         <Route path="/502" element={<BadGateway />} />
         <Route path="*" element={<NotFound />} />

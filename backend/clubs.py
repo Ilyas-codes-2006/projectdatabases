@@ -1,26 +1,174 @@
 from db import *
 from flask import g
 from datetime import date, timedelta
+from flask_mail import Message
+
+
+def request_new_club(club_name: str, city: str, motivation: str, attachments: list, mail_instance):
+    """
+    Slaat een club-aanvraag op en stuurt een verificatie-email naar alle admins.
+    attachments: lijst van {filename, mimetype, data_b64}
+    """
+    import json, base64 as b64mod
+
+    user_id = int(g.current_user['sub'])
+    user = db.session.get(User, user_id)
+    if not user:
+        return {"success": False, "error": "user_not_found"}
+
+    # Only one pending club request allowed per user at a time
+    existing_pending = db.session.query(ClubRequest).filter_by(
+        user_id=user_id, status='pending'
+    ).first()
+    if existing_pending:
+        return {"success": False, "error": "pending_request_exists"}
+
+    club_req = ClubRequest(
+        user_id=user_id,
+        club_name=club_name,
+        city=city,
+        motivation=motivation or "",
+        status='pending',
+        created_at=date.today(),
+        attachments=json.dumps(attachments) if attachments else None,
+    )
+    db.session.add(club_req)
+    db.session.commit()
+
+    admins = db.session.query(User).filter_by(is_admin=True).all()
+    admin_emails = [a.email for a in admins]
+
+    if admin_emails:
+        from config import config_data as config
+        msg = Message(
+            subject=f"[MatchUp] Nieuwe club-aanvraag: {club_name}",
+            sender=config['mail_sender'],
+            recipients=admin_emails
+        )
+        msg.body = f"""Hallo Admin,
+
+{user.first_name} {user.last_name} ({user.email}) heeft een aanvraag ingediend om een nieuwe club aan te maken.
+
+Details van de aanvraag (ID #{club_req.id}):
+  • Clubnaam  : {club_name}
+  • Stad      : {city}
+  • Motivatie : {motivation or '(geen motivatie opgegeven)'}
+  • Bijlagen  : {len(attachments)} bestand(en)
+  • Aangevraagd op: {date.today().isoformat()}
+
+Gelieve deze aanvraag te beoordelen en de club goed te keuren of af te wijzen via het admin-paneel.
+
+— Het MatchUp systeem
+"""
+        for att in attachments:
+            try:
+                file_bytes = b64mod.b64decode(att["data_b64"])
+                msg.attach(att["filename"], att["mimetype"], file_bytes)
+            except Exception:
+                pass
+
+        mail_instance.send(msg)
+
+    return {"success": True, "message": "club_request_submitted", "request_id": club_req.id}
+
+
+def review_club_request(request_id: int, action: str, mail_instance):
+    """
+    Admin keurt een club-aanvraag goed of af.
+    Bij goedkeuring wordt de club aangemaakt en de aanvrager lid gemaakt.
+    """
+    from config import config_data as config
+
+    club_req = db.session.get(ClubRequest, request_id)
+    if not club_req:
+        return {"success": False, "error": "request_not_found"}
+    if club_req.status != 'pending':
+        return {"success": False, "error": "request_already_reviewed"}
+
+    user = db.session.get(User, club_req.user_id)
+    if not user:
+        return {"success": False, "error": "user_not_found"}
+
+    if action == "approve":
+        new_club = Club(name=club_req.club_name, city=club_req.city, created_at=date.today())
+        db.session.add(new_club)
+        db.session.flush()
+
+        existing_member = db.session.query(Member).filter_by(user_id=user.id).first()
+        if not existing_member:
+            member = Member(user_id=user.id, club_id=new_club.id, joined_at=date.today(), is_admin=True)
+            db.session.add(member)
+        else:
+            existing_member.club_id = new_club.id
+            existing_member.is_admin = True
+
+        club_req.status = 'approved'
+        db.session.commit()
+
+        msg = Message(
+            subject="[MatchUp] Je club-aanvraag is goedgekeurd!",
+            sender=config['mail_sender'],
+            recipients=[user.email]
+        )
+        msg.body = f"""Hallo {user.first_name},
+
+Goed nieuws! Je aanvraag om de club "{club_req.club_name}" in {club_req.city} aan te maken is goedgekeurd.
+
+Je bent automatisch toegevoegd als lid en clubbeheerder.
+
+Veel plezier bij MatchUp!
+
+— Het MatchUp Team
+"""
+        mail_instance.send(msg)
+
+    else:  # reject
+        club_req.status = 'rejected'
+        db.session.commit()
+
+        msg = Message(
+            subject="[MatchUp] Je club-aanvraag werd niet goedgekeurd",
+            sender=config['mail_sender'],
+            recipients=[user.email]
+        )
+        msg.body = f"""Hallo {user.first_name},
+
+Helaas is je aanvraag om de club "{club_req.club_name}" aan te maken niet goedgekeurd door een admin.
+
+Heb je vragen? Neem contact op met ons via {config['mail_sender']}.
+
+— Het MatchUp Team
+"""
+        mail_instance.send(msg)
+
+    return {"success": True, "action": action}
+
 
 def show_clubs():
     user_id = int(g.current_user["sub"])
     clubs = db.session.query(Club).all()
     clubs_list = []
 
-    requests = db.session.query(Request).filter_by(user_id=user_id).all()
-    requests_map = {r.club_id: r.accepted for r in requests}
+    # Single query for user's club membership
+    member = db.session.query(Member).filter_by(user_id=user_id).first()
+    member_club_id = member.club_id if member else None
 
-    members = db.session.query(Member).filter_by(user_id=user_id).all()
-    member_club_ids = {m.club_id for m in members}
+    # Single query for all pending join requests for this user
+    pending_club_ids = {
+        r.club_id
+        for r in db.session.query(JoinRequest.club_id).filter_by(
+            user_id=user_id, status='pending'
+        ).all()
+    }
 
     for c in clubs:
         ladders = db.session.query(Ladder).filter_by(club_id=c.id).all()
         sports = [db.session.query(Sport).get(l.sport_id).name for l in ladders]
 
-        if c.id in member_club_ids:
+        if c.id == member_club_id:
             status = "member"
-        elif c.id in requests_map:
-            status = "pending" if not requests_map[c.id] else "accepted"
+        elif c.id in pending_club_ids:
+            status = "pending"
         else:
             status = "none"
 
@@ -29,46 +177,20 @@ def show_clubs():
             "name": c.name,
             "city": c.city,
             "sports": sports,
-            "request_status": status
+            "request_status": status,
+            "has_pending_request": c.id in pending_club_ids,
         })
 
-    return {"success": True, "clubs": clubs_list}
-
-
-
-def join_club(club_id):
-    """
-    Voeg de huidige gebruiker toe aan een club. Mag alleen als die nog niet in een club zit.
-    """
-    user_id = int(g.current_user['sub'])  # <-- cast naar int
-
-    # Zorg dat de club bestaat
-    club = db.session.query(Club).filter_by(id=club_id).first()
-    if not club:
-        return {"success": False, "error": "club_not_found"}
-
-    # Check of de gebruiker al in een club zit
-    member = db.session.query(Member).filter_by(user_id=user_id).first()
-    if member and member.club_id is not None:
-        return {"success": False, "error": "already_in_club"}
-
-    # Als er nog geen Member record is, maak er eentje
-    if not member:
-        member = Member(user_id=user_id, club_id=club_id, joined_at=date.today())
-        db.session.add(member)
-    else:
-        member.club_id = club_id
-        member.joined_at = date.today()
-
-    db.session.commit()
-
-    return {"success": True, "message": "joined_club"}
+    return {
+        "success": True,
+        "clubs": clubs_list,
+        "user_club": member_club_id,
+    }
 
 
 def request_join(club_id):
     """
-    Regelt een aanvraag om een club te joinen en maakt een record aan in request.
-    De club admin kan deze aanvraag vervolgens goedkeuren of afwijzen.
+    Eenvoudige join-aanvraag via de Request tabel (legacy).
     """
     user_id = int(g.current_user["sub"])
 
@@ -76,7 +198,6 @@ def request_join(club_id):
     if not club:
         return {"success": False, "error": "club_not_found"}
 
-    # Als de gebruiker al lid is van deze club, geen nieuwe aanvraag aanmaken
     existing_membership = db.session.query(Member).filter_by(
         user_id=user_id, club_id=club_id
     ).first()
@@ -86,7 +207,6 @@ def request_join(club_id):
     existing_request = db.session.query(Request).filter_by(
         user_id=user_id, club_id=club_id
     ).first()
-
     if existing_request:
         return {"success": False, "error": "request_already_exists"}
 
@@ -100,9 +220,185 @@ def request_join(club_id):
 
     return {"success": True, "message": "join_request_created"}
 
+
+def request_join_club(club_id: int, motivation: str, mail_instance):
+    """
+    Stuurt een join-aanvraag naar de club admin via e-mail (JoinRequest tabel).
+    """
+    from config import config_data as config
+
+    user_id = int(g.current_user['sub'])
+    user = db.session.get(User, user_id)
+    if not user:
+        return {"success": False, "error": "user_not_found"}
+
+    club = db.session.get(Club, club_id)
+    if not club:
+        return {"success": False, "error": "club_not_found"}
+
+    existing_member = db.session.query(Member).filter_by(user_id=user_id, club_id=club_id).first()
+    if existing_member:
+        return {"success": False, "error": "already_member"}
+
+    existing_req = db.session.query(JoinRequest).filter_by(
+        user_id=user_id, club_id=club_id
+    ).first()
+    if existing_req:
+        if existing_req.status == 'pending':
+            return {"success": False, "error": "request_already_pending"}
+        # Previous request was approved or rejected — reuse the row to avoid
+        # UniqueViolation on uq_join_request_user_club
+        existing_req.motivation = motivation or ""
+        existing_req.status = 'pending'
+        existing_req.created_at = date.today()
+        db.session.commit()
+    else:
+        join_req = JoinRequest(
+            user_id=user_id,
+            club_id=club_id,
+            motivation=motivation or "",
+            status='pending',
+            created_at=date.today(),
+        )
+        db.session.add(join_req)
+        db.session.commit()
+
+    club_admins = db.session.query(User).join(
+        Member, Member.user_id == User.id
+    ).filter(Member.club_id == club_id, Member.is_admin == True).all()
+
+    admin_emails = [a.email for a in club_admins]
+    if admin_emails:
+        msg = Message(
+            subject=f"[MatchUp] Nieuwe lid-aanvraag voor {club.name}",
+            sender=config['mail_sender'],
+            recipients=admin_emails,
+        )
+        msg.body = f"""Hallo Club Admin,
+
+{user.first_name} {user.last_name} ({user.email}) wil lid worden van jouw club "{club.name}".
+
+Motivatie: {motivation or '(geen motivatie opgegeven)'}
+
+Bekijk en beoordeel de aanvraag via het 'My Club' paneel op MatchUp.
+
+— Het MatchUp systeem
+"""
+        mail_instance.send(msg)
+
+    return {"success": True, "message": "join_request_submitted"}
+
+
+def review_join_request(join_request_id: int, action: str, mail_instance):
+    """
+    Club admin keurt een lid-aanvraag goed of af.
+    """
+    from config import config_data as config
+
+    user_id = int(g.current_user['sub'])
+
+    join_req = db.session.get(JoinRequest, join_request_id)
+    if not join_req:
+        return {"success": False, "error": "request_not_found"}
+
+    admin_member = db.session.query(Member).filter_by(
+        user_id=user_id, club_id=join_req.club_id, is_admin=True
+    ).first()
+    if not admin_member:
+        return {"success": False, "error": "forbidden"}
+
+    if join_req.status != 'pending':
+        return {"success": False, "error": "request_already_reviewed"}
+
+    requester = db.session.get(User, join_req.user_id)
+    club = db.session.get(Club, join_req.club_id)
+
+    if action == "approve":
+        existing = db.session.query(Member).filter_by(user_id=join_req.user_id).first()
+        if not existing:
+            new_member = Member(
+                user_id=join_req.user_id,
+                club_id=join_req.club_id,
+                joined_at=date.today(),
+                is_admin=False,
+            )
+            db.session.add(new_member)
+        else:
+            existing.club_id = join_req.club_id
+            existing.is_admin = False
+
+        join_req.status = 'approved'
+        db.session.commit()
+
+        if requester:
+            msg = Message(
+                subject=f"[MatchUp] Je bent toegelaten tot {club.name}!",
+                sender=config['mail_sender'],
+                recipients=[requester.email],
+            )
+            msg.body = f"""Hallo {requester.first_name},
+
+Goed nieuws! De club admin van "{club.name}" heeft je aanvraag goedgekeurd.
+Je bent nu officieel lid van de club.
+
+Veel plezier bij MatchUp!
+
+— Het MatchUp Team
+"""
+            mail_instance.send(msg)
+
+    else:  # reject
+        join_req.status = 'rejected'
+        db.session.commit()
+
+        if requester:
+            msg = Message(
+                subject=f"[MatchUp] Je aanvraag voor {club.name} werd afgewezen",
+                sender=config['mail_sender'],
+                recipients=[requester.email],
+            )
+            msg.body = f"""Hallo {requester.first_name},
+
+Helaas heeft de club admin van "{club.name}" je aanvraag niet goedgekeurd.
+
+Heb je vragen? Neem contact op via {config['mail_sender']}.
+
+— Het MatchUp Team
+"""
+            mail_instance.send(msg)
+
+    return {"success": True, "action": action}
+
+
+def join_club(club_id):
+    """
+    Voeg de huidige gebruiker direct toe aan een club.
+    """
+    user_id = int(g.current_user['sub'])
+
+    club = db.session.query(Club).filter_by(id=club_id).first()
+    if not club:
+        return {"success": False, "error": "club_not_found"}
+
+    member = db.session.query(Member).filter_by(user_id=user_id).first()
+    if member and member.club_id is not None:
+        return {"success": False, "error": "already_in_club"}
+
+    if not member:
+        member = Member(user_id=user_id, club_id=club_id, joined_at=date.today())
+        db.session.add(member)
+    else:
+        member.club_id = club_id
+        member.joined_at = date.today()
+
+    db.session.commit()
+    return {"success": True, "message": "joined_club"}
+
+
 def leave_club(club_id):
     """
-    Laat de huidige gebruiker een club verlaten. Mag alleen als die in die club zit.
+    Laat de huidige gebruiker een club verlaten.
+    Als de club daarna leeg is, wordt ze automatisch verwijderd.
     """
     user_id = int(g.current_user["sub"])
 
@@ -111,7 +407,99 @@ def leave_club(club_id):
         return {"success": False, "error": "not_a_member"}
 
     db.session.delete(member)
-    db.session.commit()
+    db.session.flush()
 
+    # Clean up this user's JoinRequest so they can re-apply later without hitting
+    # the unique constraint on (user_id, club_id)
+    old_req = db.session.query(JoinRequest).filter_by(
+        user_id=user_id, club_id=club_id
+    ).first()
+    if old_req:
+        db.session.delete(old_req)
+        db.session.flush()
+
+    # Auto-delete club if no members remain (cascade handles all other FK references)
+    remaining = db.session.query(Member).filter_by(club_id=club_id).count()
+    if remaining == 0:
+        _delete_club_cascade(club_id)
+
+    db.session.commit()
     return {"success": True, "message": "left_club"}
 
+
+def _delete_club_cascade(club_id: int):
+    """
+    Delete all rows that reference this club, then delete the club itself.
+    Correct FK order:
+      1. JoinRequest  (FK -> club)
+      2. Request      (FK -> club)
+      3. TeamMember / Availability / Match  (FK -> team -> ladder -> club)
+      4. Team         (FK -> ladder)
+      5. Ladder       (FK -> club)
+      6. Member       (FK -> club)  — must come after TeamMember is gone
+      7. Club
+
+    Does NOT commit — caller is responsible.
+    """
+    # 1. Join requests from any user for this club
+    JoinRequest.query.filter_by(club_id=club_id).delete(synchronize_session=False)
+
+    # 2. Legacy requests
+    Request.query.filter_by(club_id=club_id).delete(synchronize_session=False)
+
+    # 3-5. Ladders and everything hanging off them
+    for ladder in Ladder.query.filter_by(club_id=club_id).all():
+        for team in Team.query.filter_by(ladder_id=ladder.id).all():
+            for tm in TeamMember.query.filter_by(team_id=team.id).all():
+                Availability.query.filter_by(team_member_id=tm.id).delete(synchronize_session=False)
+            TeamMember.query.filter_by(team_id=team.id).delete(synchronize_session=False)
+            Match.query.filter(
+                (Match.home_team_id == team.id) | (Match.away_team_id == team.id)
+            ).delete(synchronize_session=False)
+            db.session.delete(team)
+        db.session.delete(ladder)
+
+    # 6. Members (FK club_id -> club.id)
+    Member.query.filter_by(club_id=club_id).delete(synchronize_session=False)
+
+    # 7. The club itself
+    club = db.session.get(Club, club_id)
+    if club:
+        db.session.delete(club)
+
+
+def _auto_delete_if_no_admin(club_id: int):
+    """
+    Delete the club if it has no admin members left.
+    Called after a user (who was club admin) gets deleted.
+    Does NOT commit — caller is responsible.
+    """
+    has_admin = db.session.query(Member).filter_by(
+        club_id=club_id, is_admin=True
+    ).first()
+    if not has_admin:
+        _delete_club_cascade(club_id)
+
+
+def delete_club(club_id: int, requesting_user_id: int, is_site_admin: bool):
+    """
+    Verwijder een club. Toegestaan voor de club admin of een site admin.
+    """
+    club = db.session.get(Club, club_id)
+    if not club:
+        return {"success": False, "error": "club_not_found"}
+
+    if not is_site_admin:
+        admin_member = db.session.query(Member).filter_by(
+            user_id=requesting_user_id, club_id=club_id, is_admin=True
+        ).first()
+        if not admin_member:
+            return {"success": False, "error": "forbidden"}
+
+    try:
+        _delete_club_cascade(club_id)
+        db.session.commit()
+        return {"success": True, "message": "club_deleted"}
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "error": str(e)}
