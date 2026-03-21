@@ -94,7 +94,7 @@ def create_app(test_config=None):
         try:
             parsed_dob = date.fromisoformat(data['date_of_birth'])
         except ValueError:
-            return jsonify({"error": "Ongeldige geboortedatum. Gebruik YYYY-MM-DD."}), 400
+            return jsonify({"error": "Invalid date of birth!"}), 400
 
         email = data['email'].lower()
         try:
@@ -102,6 +102,12 @@ def create_app(test_config=None):
             email = res.normalized
         except EmailNotValidError:
             return jsonify({"error": "Invalid e-mail."}), 400
+
+        today = date.today()
+        latest_accepting_date = date(today.year-6, today.month, today.day)
+
+        if parsed_dob > latest_accepting_date:
+            return jsonify({"error": "Invalid date of birth. You have to be at least 6 years old to have an account!"}), 400
 
         result = register_user(
             last_name=data['last_name'],
