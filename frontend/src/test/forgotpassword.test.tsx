@@ -26,32 +26,35 @@ vi.mock("../components/MessageBanner", () => ({
 describe("ForgotPassword page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubGlobal("fetch", vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            message: "Als dit e-mailadres bij ons bekend is, ontvang je binnen enkele minuten een resetlink.",
-          }),
-      } as Response)
-    ));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              message:
+                "Als dit e-mailadres bij ons bekend is, ontvang je binnen enkele minuten een resetlink.",
+            }),
+        } as Response),
+      ),
+    );
   });
 
   it("submits email and shows success message", async () => {
     render(<ForgotPassword />);
 
-    fireEvent.change(screen.getByLabelText("E-mailadres"), {
+    fireEvent.change(screen.getByLabelText("E-mail"), {
       target: { value: "jan@example.com" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Stuur resetlink" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send resetlink" }));
 
     await waitFor(() =>
       expect(mockShowMessage).toHaveBeenCalledWith(
         "Als dit e-mailadres bij ons bekend is, ontvang je binnen enkele minuten een resetlink.",
-        "success"
-      )
+        "success",
+      ),
     );
   });
 });
-

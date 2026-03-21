@@ -17,22 +17,27 @@ export default function Register() {
   const { message, clearMessage, showMessage } = useMessage();
   const [loading, setLoading] = useState(false);
   const [registerData, setRegisterData] = useState<User>({
-    first_name: "", last_name: "", email: "",
-    date_of_birth: "", password: "", confirm_password: "",
+    first_name: "",
+    last_name: "",
+    email: "",
+    date_of_birth: "",
+    password: "",
+    confirm_password: "",
   });
 
-  const update = (field: keyof User) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setRegisterData({ ...registerData, [field]: e.target.value });
+  const update =
+    (field: keyof User) => (e: React.ChangeEvent<HTMLInputElement>) =>
+      setRegisterData({ ...registerData, [field]: e.target.value });
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessage();
     if (registerData.password !== registerData.confirm_password) {
-      showMessage("Wachtwoorden komen niet overeen", "error");
+      showMessage("Passwords do not match!", "error");
       return;
     }
     if (registerData.password.length < 8) {
-      showMessage("Wachtwoord moet minimaal 8 tekens bevatten", "error");
+      showMessage("Password must contain at least 8 characters!", "error");
       return;
     }
     setLoading(true);
@@ -44,11 +49,16 @@ export default function Register() {
       });
       const data = await res.json();
       if (res.ok) {
-        navigate("/login", { state: { message: "Account aangemaakt! Je kunt nu inloggen.", type: "success" } });
+        navigate("/login", {
+          state: {
+            message: "Succesfully made an account! You can now login.",
+            type: "success",
+          },
+        });
       } else {
         if (res.status === 500) return navigate("/500");
         if (res.status === 502 || res.status === 503) return navigate("/502");
-        showMessage(data.error || "Registratie mislukt", "error");
+        showMessage(data.error || "Registration failed.", "error");
       }
     } catch {
       navigate("/502");
@@ -63,47 +73,47 @@ export default function Register() {
       <div className="auth-card auth-card-wide">
         <div className="auth-header">
           <span className="auth-icon">🏅</span>
-          <h2>Word lid van je club</h2>
-          <p>Maak je spelersprofiel aan</p>
+          <h2>Become a member of your club!</h2>
+          <p>Create a profile!</p>
         </div>
         <form onSubmit={handleRegister} className="auth-form">
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="register-firstname">Voornaam</label>
-              <input id="register-firstname" type="text" placeholder="Jan" required value={registerData.first_name} onChange={update("first_name")} />
+              <label htmlFor="register-firstname">First name</label>
+              <input id="register-firstname" type="text" placeholder="John" required value={registerData.first_name} onChange={update("first_name")} />
             </div>
             <div className="form-group">
-              <label htmlFor="register-lastname">Achternaam</label>
-              <input id="register-lastname" type="text" placeholder="Janssen" required value={registerData.last_name} onChange={update("last_name")} />
+              <label htmlFor="register-lastname">Last name</label>
+              <input id="register-lastname" type="text" placeholder="Doe" required value={registerData.last_name} onChange={update("last_name")} />
             </div>
           </div>
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="register-email">E-mailadres</label>
-              <input id="register-email" type="email" placeholder="jan@voorbeeld.com" required value={registerData.email} onChange={update("email")} />
+              <label htmlFor="register-email">E-mail</label>
+              <input id="register-email" type="email" placeholder="john.doe@example.com" required value={registerData.email} onChange={update("email")} />
             </div>
             <div className="form-group">
-              <label htmlFor="register-dob">Geboortedatum</label>
+              <label htmlFor="register-dob">Date of birth</label>
               <input id="register-dob" type="date" required value={registerData.date_of_birth} onChange={update("date_of_birth")} />
             </div>
           </div>
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="register-password">Wachtwoord</label>
-              <input id="register-password" type="password" placeholder="Min. 8 tekens" required value={registerData.password} onChange={update("password")} />
+              <label htmlFor="register-password">Password</label>
+              <input id="register-password" type="password" placeholder="Min. 8 characters" required value={registerData.password} onChange={update("password")} />
             </div>
             <div className="form-group">
-              <label htmlFor="register-password-confirm">Bevestig wachtwoord</label>
-              <input id="register-password-confirm" type="password" placeholder="Herhaal wachtwoord" required value={registerData.confirm_password} onChange={update("confirm_password")} />
+              <label htmlFor="register-password-confirm">Confirm password</label>
+              <input id="register-password-confirm" type="password" placeholder="Repeat password" required value={registerData.confirm_password} onChange={update("confirm_password")} />
             </div>
           </div>
           <button type="submit" className="btn-submit" disabled={loading}>
-            {loading ? "Account aanmaken…" : "Account aanmaken"}
+            {loading ? "Creating account…" : "Create account"}
           </button>
         </form>
         <p className="auth-switch">
-          Al een account?{" "}
-          <button onClick={() => navigate("/login")}>Inloggen</button>
+          Already have an account?{" "}
+          <button onClick={() => navigate("/login")}>Log in</button>
         </p>
       </div>
     </div>
