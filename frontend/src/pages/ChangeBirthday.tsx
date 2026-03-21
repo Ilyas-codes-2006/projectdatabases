@@ -2,12 +2,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-export default function ChangeName() {
+export default function ChangeBirthday() {
   const { loggedInUser } = useAuth();
   const navigate = useNavigate();
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [birthday, setBirthday] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,12 +18,12 @@ export default function ChangeName() {
     return null;
   }
 
-  const handleChangeName = async (e: React.FormEvent) => {
+  const handleChangeBirthday = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSuccess("");
 
-    if (!firstName || !lastName || !password || !confirmPassword) {
+    if (!birthday || !password || !confirmPassword) {
       setError("All fields are required.");
       return;
     }
@@ -37,25 +36,24 @@ export default function ChangeName() {
     setSaving(true);
 
     try {
-      const res = await fetch("/api/profile/change-name", {
+      const res = await fetch("/api/profile/change-birthday", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
         body: JSON.stringify({
-          new_first_name: firstName,
-          new_last_name: lastName,
+          new_birthday: birthday,
           password,
         }),
       });
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error|| "Failed to update name");
+        throw new Error(data.error || "Failed to update birthday");
       }
 
-      setSuccess("Name successfully updated!");
+      setSuccess("Birthday successfully updated!");
       setTimeout(() => navigate("/profile"), 1500);
     } catch (err: any) {
       setError(err.message || "Something went wrong.");
@@ -68,43 +66,30 @@ export default function ChangeName() {
     <div className="profile-wrapper">
       <div className="profile-card" style={{ maxWidth: "400px" }}>
         <h2 className="profile-section-title"
-            style={{
+        style={{
             textAlign: "center",
             fontSize: "1.8rem",
             marginTop: "0",
             marginBottom: "1.5rem"
           }}
         >
-          Change Name
+          Change Birthday
         </h2>
 
-        <form className="auth-form" onSubmit={handleChangeName}>
+        <form className="auth-form" onSubmit={handleChangeBirthday}>
           <div className="form-group">
-            <label htmlFor="first-name">First Name</label>
+            <label htmlFor="birthday">New Birthday</label>
             <input
-              type="text"
-              id="first-name"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              placeholder="John"
+              type="date"
+              id="birthday"
+              value={birthday}
+              onChange={(e) => setBirthday(e.target.value)}
               required
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="last-name">Last Name</label>
-            <input
-              type="text"
-              id="last-name"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              placeholder="Doe"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="password">Current Password</label>
+            <label htmlFor="password">Password</label>
             <input
               type="password"
               id="password"
@@ -131,7 +116,7 @@ export default function ChangeName() {
           {success && <p style={{ color: "var(--green-light)", textAlign: "center" }}>{success}</p>}
 
           <button type="submit" className="btn-submit" disabled={saving}>
-            {saving ? "Saving…" : "Update Name"}
+            {saving ? "Saving…" : "Update Birthday"}
           </button>
 
           <button
