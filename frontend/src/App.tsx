@@ -20,6 +20,7 @@ import ServerError from "./pages/servererror";
 import BadGateway from "./pages/badgateway";
 import ChangeEmail from "./pages/ChangeMail";
 import ChangeName from "./pages/ChangeName";
+import ChangeBirthday from "./pages/ChangeBirthday";
 
 import "./App.css";
 
@@ -46,6 +47,7 @@ function Layout() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile/change-email" element={<ChangeEmail />} />
         <Route path="/profile/change-name" element={<ChangeName />} />
+        <Route path="/profile/change-birthday" element={<ChangeBirthday />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/admin/club-requests" element={<AdminClubRequests />} />
         <Route path="/my-club" element={<MyClub />} />

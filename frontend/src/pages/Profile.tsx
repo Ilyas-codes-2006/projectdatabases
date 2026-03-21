@@ -97,7 +97,9 @@ export default function Profile() {
             {profile.first_name} {profile.last_name}
           </h2>
           <p className="profile-email">{profile.email}</p>
-
+          <p className="profile-dob">
+            {new Date(profile.date_of_birth).toLocaleDateString()}
+          </p>
           {/* Edit Profile knop */}
           <button
             className="btn-secondary"
@@ -108,24 +110,11 @@ export default function Profile() {
           {/* Mini kader / popup met keuzes */}
           {showEditMenu && (
             <div className="edit-menu">
-              <button
-                className="btn-inline"
-                onClick={() => navigate("/profile/change-name")}
-              >
-                Edit Name
-              </button>
-              <button
-                className="btn-inline"
-                onClick={() => navigate("/profile/change-email")}
-              >
-                Edit Email
-              </button>
+              <button onClick={() => navigate("/profile/change-name")}>Edit Name</button>
+              <button onClick={() => navigate("/profile/change-email")}>Edit Email</button>
+              <button onClick={() => navigate("/profile/change-birthday")}>Edit Birthday</button>
             </div>
           )}
-          <p className="profile-dob">
-            🎂 {new Date(profile.date_of_birth).toLocaleDateString()}
-          </p>
-
           <hr className="profile-divider"/>
 
           {/* Bio */}

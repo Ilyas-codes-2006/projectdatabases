@@ -6,14 +6,11 @@ from config import config_data as config
 from datetime import date
 from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
-    admin_required, change_user_email, change_user_name
+    admin_required,change_user_email, change_user_name, change_user_birthday
 from teams import show_teams, create_team, join_team
+from clubs import show_clubs, leave_club, request_join
+from email_validator import validate_email, EmailNotValidError
 from clubs import show_clubs, request_new_club, request_join_club, request_join, review_join_request, leave_club, delete_club, _delete_club_cascade, _auto_delete_if_no_admin
-
-from flask import Flask
-from flask_cors import CORS
-from db import db
-from flask_mail import Mail
 
 mail = Mail()
 
@@ -63,7 +60,14 @@ def create_app(test_config=None):
         if not data or 'email' not in data or 'password' not in data:
             return jsonify({"error": "Email and password are required"}), 400
 
-        result = login_user(data['email'], data['password'])
+        email = data['email'].lower()
+        try:
+            res = validate_email(email)
+            email = res.normalized
+        except EmailNotValidError:
+            return jsonify({"error": "Invalid e-mail."}), 400
+
+        result = login_user(email, data['password'])
 
         if result['success']:
             return jsonify({
@@ -91,7 +95,20 @@ def create_app(test_config=None):
         try:
             parsed_dob = date.fromisoformat(data['date_of_birth'])
         except ValueError:
-            return jsonify({"error": "Ongeldige geboortedatum. Gebruik YYYY-MM-DD."}), 400
+            return jsonify({"error": "Invalid date of birth!"}), 400
+
+        email = data['email'].lower()
+        try:
+            res = validate_email(email)
+            email = res.normalized
+        except EmailNotValidError:
+            return jsonify({"error": "Invalid e-mail."}), 400
+
+        today = date.today()
+        latest_accepting_date = date(today.year-6, today.month, today.day)
+
+        if parsed_dob > latest_accepting_date:
+            return jsonify({"error": "Invalid date of birth. You have to be at least 6 years old to have an account!"}), 400
 
         result = register_user(
             last_name=data['last_name'],
@@ -100,13 +117,14 @@ def create_app(test_config=None):
             bio=data.get('bio', ''),
             is_admin=data.get('is_admin', False),
             date_of_birth=parsed_dob,
-            email=data['email']
+            email=email
         )
 
         if result['success']:
             return jsonify({"message": "User registered successfully"}), 201
         else:
             return jsonify({"error": result['error']}), 400
+
 
     @app.route("/api/admin/users", methods=["GET"])
     @token_required
@@ -151,7 +169,7 @@ def create_app(test_config=None):
             return jsonify({"error": "You cannot delete yourself"}), 400
 
         user_name = f"{user.first_name} {user.last_name}"
-
+        
         try:
             members = Member.query.filter_by(user_id=user_id).all()
             member_ids = [m.id for m in members]
@@ -159,20 +177,22 @@ def create_app(test_config=None):
             administered_club_ids = [m.club_id for m in members if m.is_admin and m.club_id]
 
             if member_ids:
+                # TeamMember links to Member, NOT directly to User
                 team_members = TeamMember.query.filter(TeamMember.member_id.in_(member_ids)).all()
                 team_member_ids = [tm.id for tm in team_members]
-
+                
                 if team_member_ids:
                     Availability.query.filter(Availability.team_member_id.in_(team_member_ids)).delete(synchronize_session=False)
-
+                
                 TeamMember.query.filter(TeamMember.member_id.in_(member_ids)).delete(synchronize_session=False)
 
             Member.query.filter_by(user_id=user_id).delete(synchronize_session=False)
-
+            
             PasswordResetToken.query.filter_by(user_id=user_id).delete(synchronize_session=False)
             Request.query.filter_by(user_id=user_id).delete(synchronize_session=False)
             JoinRequest.query.filter_by(user_id=user_id).delete(synchronize_session=False)
 
+            # Nullify matches reported_by to keep history
             Match.query.filter_by(reported_by=user_id).update({Match.reported_by: None}, synchronize_session=False)
 
             db.session.flush()
@@ -185,7 +205,7 @@ def create_app(test_config=None):
 
             db.session.delete(user)
             db.session.commit()
-
+            
             return jsonify({"message": f"User {user_name} deleted successfully"}), 200
         except Exception as e:
             db.session.rollback()
@@ -305,6 +325,7 @@ def create_app(test_config=None):
             if count >= 2:
                 return jsonify({"error": "Dit team zit al vol (max 2 leden)"}), 400
 
+        # Zorg dat member record bestaat
         from datetime import date
         member = db.session.query(Member).filter_by(user_id=user_id).first()
         if not member:
@@ -312,8 +333,10 @@ def create_app(test_config=None):
             db.session.add(member)
             db.session.flush()
 
+        # Verwijder huidig team membership
         db.session.query(TeamMember).filter_by(member_id=member.id).delete()
 
+        # Voeg toe aan nieuw team indien opgegeven
         if new_team_id is not None:
             db.session.add(TeamMember(team_id=new_team_id, member_id=member.id))
 
@@ -700,7 +723,15 @@ def create_app(test_config=None):
         user_id = g.current_user['sub']
         if not data or 'new_email' not in data or 'password' not in data:
             return jsonify({"error": "new_email and password are required"}), 400
-        result = change_user_email(user_id, data['new_email'], data['password'])
+
+        new_email = data['new_email'].lower()
+        try:
+            res = validate_email(new_email)
+            new_email = res.normalized
+        except EmailNotValidError:
+            return jsonify({"error": "New email is invalid!"}), 400
+
+        result = change_user_email(user_id, new_email, data['password'])
         if result['success']:
             return jsonify({"message": result['message']}), 200
         else:
@@ -719,5 +750,74 @@ def create_app(test_config=None):
             return jsonify({"message": result['message']}), 200
         else:
             return jsonify({"error": result['error']}), 400
+
+    @app.route("/api/profile/change-birthday", methods=["PUT"])
+    @token_required
+    def change_birthday():
+        user_id = g.current_user['sub']
+        data = request.get_json()
+
+        if not data or 'new_birthday' not in data or 'password' not in data:
+            return jsonify({"error": "new_birthday and password are required"}), 400
+
+        # Converteer string naar date object, hetzelfde zoals register_user
+        try:
+            new_birthday_date = date.fromisoformat(data['new_birthday'])
+        except ValueError:
+            return jsonify({"error": "Use YYYY-MM-DD"}), 400
+
+        today = date.today()
+        latest_accepting_date = date(today.year - 6, today.month, today.day)
+
+        if new_birthday_date > latest_accepting_date:
+            return jsonify(
+                {"error": "Invalid date of birth. You have to be at least 6 years old to have an account!"}), 400
+
+        result = change_user_birthday(user_id, new_birthday_date, data['password'])
+
+        if result['success']:
+            return jsonify({"message": result['message']}), 200
+        else:
+            return jsonify({"error": result['error']}), 400
+
+    @app.route("/api/notifications", methods=["GET"])
+    @token_required
+    def get_notifications():
+        """
+        Geeft alle openstaande join-verzoeken terug voor clubs
+        waar de ingelogde gebruiker club-admin is.
+        """
+        user_id = int(g.current_user["sub"])
+
+        # Vind alle clubs waar deze user admin van is
+        admin_memberships = db.session.query(Member).filter_by(
+            user_id=user_id, is_admin=True
+        ).all()
+
+        if not admin_memberships:
+            return jsonify([]), 200
+
+        admin_club_ids = [m.club_id for m in admin_memberships]
+
+        # Haal alle pending requests op voor die clubs
+        pending_requests = db.session.query(Request, User, Club).join(
+            User, User.id == Request.user_id
+        ).join(
+            Club, Club.id == Request.club_id
+        ).filter(
+            Request.club_id.in_(admin_club_ids),
+            Request.accepted == False
+        ).all()
+
+        notifications = []
+        for req, user, club in pending_requests:
+            notifications.append({
+                "user_id": user.id,
+                "user_name": f"{user.first_name} {user.last_name}",
+                "club_id": club.id,
+                "club_name": club.name,
+            })
+
+        return jsonify(notifications), 200
 
     return app
