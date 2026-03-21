@@ -555,12 +555,20 @@ def create_app(test_config=None):
         except ValueError:
             return jsonify({"error": "Use YYYY-MM-DD"}), 400
 
+        today = date.today()
+        latest_accepting_date = date(today.year - 6, today.month, today.day)
+
+        if new_birthday_date > latest_accepting_date:
+            return jsonify(
+                {"error": "Invalid date of birth. You have to be at least 6 years old to have an account!"}), 400
+
         result = change_user_birthday(user_id, new_birthday_date, data['password'])
 
         if result['success']:
             return jsonify({"message": result['message']}), 200
         else:
             return jsonify({"error": result['error']}), 400
+
     @app.route("/api/notifications", methods=["GET"])
     @token_required
     def get_notifications():
