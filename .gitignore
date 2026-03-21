@@ -30,3 +30,5 @@ node_modules/
 frontend/.vite/
 
 .direnv
+.idea/
+.idea/
