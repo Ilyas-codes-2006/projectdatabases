@@ -8,7 +8,7 @@ from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
     admin_required, change_user_email, change_user_name
 from teams import show_teams, create_team, join_team
-from clubs import show_clubs, request_new_club, request_join_club, request_join, review_join_request, leave_club
+from clubs import show_clubs, request_new_club, request_join_club, request_join, review_join_request, leave_club, delete_club, _delete_club_cascade, _auto_delete_if_no_admin
 
 from flask import Flask
 from flask_cors import CORS
@@ -153,7 +153,10 @@ def create_app(test_config=None):
         user_name = f"{user.first_name} {user.last_name}"
 
         try:
-            member_ids = [m.id for m in Member.query.filter_by(user_id=user_id).all()]
+            members = Member.query.filter_by(user_id=user_id).all()
+            member_ids = [m.id for m in members]
+            # Track which clubs this user was admin of, so we can check afterward
+            administered_club_ids = [m.club_id for m in members if m.is_admin and m.club_id]
 
             if member_ids:
                 team_members = TeamMember.query.filter(TeamMember.member_id.in_(member_ids)).all()
@@ -168,8 +171,15 @@ def create_app(test_config=None):
 
             PasswordResetToken.query.filter_by(user_id=user_id).delete(synchronize_session=False)
             Request.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+            JoinRequest.query.filter_by(user_id=user_id).delete(synchronize_session=False)
 
             Match.query.filter_by(reported_by=user_id).update({Match.reported_by: None}, synchronize_session=False)
+
+            db.session.flush()
+
+            # Auto-delete any club the user administered that now has no admin left
+            for club_id in administered_club_ids:
+                _auto_delete_if_no_admin(club_id)
 
             db.session.flush()
 
@@ -656,6 +666,32 @@ def create_app(test_config=None):
     def leave_club_(club_id):
         result = leave_club(club_id)
         return jsonify(result)
+
+    @app.delete("/api/clubs/<int:club_id>")
+    @token_required
+    def delete_club_(club_id):
+        user_id = int(g.current_user['sub'])
+        is_admin = g.current_user.get('is_admin', False)
+        result = delete_club(club_id, user_id, is_admin)
+        if result["success"]:
+            return jsonify(result), 200
+        if result.get("error") == "forbidden":
+            return jsonify(result), 403
+        if result.get("error") == "club_not_found":
+            return jsonify(result), 404
+        return jsonify(result), 500
+
+    @app.delete("/api/admin/clubs/<int:club_id>")
+    @token_required
+    @admin_required
+    def admin_delete_club(club_id):
+        user_id = int(g.current_user['sub'])
+        result = delete_club(club_id, user_id, is_site_admin=True)
+        if result["success"]:
+            return jsonify(result), 200
+        if result.get("error") == "club_not_found":
+            return jsonify(result), 404
+        return jsonify(result), 500
 
     @app.route("/api/profile/change-email", methods=["PUT"])
     @token_required

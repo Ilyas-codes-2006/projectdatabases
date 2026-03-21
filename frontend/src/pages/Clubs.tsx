@@ -99,7 +99,10 @@ export default function Clubs() {
         showMessage("Aanvraag ingediend! Een admin wordt per e-mail op de hoogte gebracht.", "success");
         closeModal();
       } else {
-        showMessage(data.error || "Aanvraag mislukt", "error");
+        const errMap: Record<string, string> = {
+          pending_request_exists: "Je hebt al een openstaande club-aanvraag. Wacht tot deze beoordeeld is.",
+        };
+        showMessage(errMap[data.error] || data.error || "Aanvraag mislukt", "error");
       }
     } catch {
       showMessage("Kon geen verbinding maken met de server", "error");

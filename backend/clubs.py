@@ -16,6 +16,13 @@ def request_new_club(club_name: str, city: str, motivation: str, attachments: li
     if not user:
         return {"success": False, "error": "user_not_found"}
 
+    # Only one pending club request allowed per user at a time
+    existing_pending = db.session.query(ClubRequest).filter_by(
+        user_id=user_id, status='pending'
+    ).first()
+    if existing_pending:
+        return {"success": False, "error": "pending_request_exists"}
+
     club_req = ClubRequest(
         user_id=user_id,
         club_name=club_name,
@@ -142,28 +149,25 @@ def show_clubs():
     clubs = db.session.query(Club).all()
     clubs_list = []
 
-    members = db.session.query(Member).filter_by(user_id=user_id).all()
-    member_club_ids = {m.club_id for m in members}
+    # Single query for user's club membership
+    member = db.session.query(Member).filter_by(user_id=user_id).first()
+    member_club_id = member.club_id if member else None
 
-    user_club = None
-    for club_id in member_club_ids:
-        user_club = club_id
-        break
+    # Single query for all pending join requests for this user
+    pending_club_ids = {
+        r.club_id
+        for r in db.session.query(JoinRequest.club_id).filter_by(
+            user_id=user_id, status='pending'
+        ).all()
+    }
 
     for c in clubs:
         ladders = db.session.query(Ladder).filter_by(club_id=c.id).all()
         sports = [db.session.query(Sport).get(l.sport_id).name for l in ladders]
 
-        is_member = c.id in member_club_ids
-
-        # Check pending JoinRequest
-        pending_req = db.session.query(JoinRequest).filter_by(
-            user_id=user_id, club_id=c.id, status='pending'
-        ).first()
-
-        if is_member:
+        if c.id == member_club_id:
             status = "member"
-        elif pending_req:
+        elif c.id in pending_club_ids:
             status = "pending"
         else:
             status = "none"
@@ -174,13 +178,13 @@ def show_clubs():
             "city": c.city,
             "sports": sports,
             "request_status": status,
-            "has_pending_request": pending_req is not None,
+            "has_pending_request": c.id in pending_club_ids,
         })
 
     return {
         "success": True,
         "clubs": clubs_list,
-        "user_club": user_club,
+        "user_club": member_club_id,
     }
 
 
@@ -237,20 +241,27 @@ def request_join_club(club_id: int, motivation: str, mail_instance):
         return {"success": False, "error": "already_member"}
 
     existing_req = db.session.query(JoinRequest).filter_by(
-        user_id=user_id, club_id=club_id, status='pending'
+        user_id=user_id, club_id=club_id
     ).first()
     if existing_req:
-        return {"success": False, "error": "request_already_pending"}
-
-    join_req = JoinRequest(
-        user_id=user_id,
-        club_id=club_id,
-        motivation=motivation or "",
-        status='pending',
-        created_at=date.today(),
-    )
-    db.session.add(join_req)
-    db.session.commit()
+        if existing_req.status == 'pending':
+            return {"success": False, "error": "request_already_pending"}
+        # Previous request was approved or rejected — reuse the row to avoid
+        # UniqueViolation on uq_join_request_user_club
+        existing_req.motivation = motivation or ""
+        existing_req.status = 'pending'
+        existing_req.created_at = date.today()
+        db.session.commit()
+    else:
+        join_req = JoinRequest(
+            user_id=user_id,
+            club_id=club_id,
+            motivation=motivation or "",
+            status='pending',
+            created_at=date.today(),
+        )
+        db.session.add(join_req)
+        db.session.commit()
 
     club_admins = db.session.query(User).join(
         Member, Member.user_id == User.id
@@ -387,6 +398,7 @@ def join_club(club_id):
 def leave_club(club_id):
     """
     Laat de huidige gebruiker een club verlaten.
+    Als de club daarna leeg is, wordt ze automatisch verwijderd.
     """
     user_id = int(g.current_user["sub"])
 
@@ -395,6 +407,99 @@ def leave_club(club_id):
         return {"success": False, "error": "not_a_member"}
 
     db.session.delete(member)
-    db.session.commit()
+    db.session.flush()
 
+    # Clean up this user's JoinRequest so they can re-apply later without hitting
+    # the unique constraint on (user_id, club_id)
+    old_req = db.session.query(JoinRequest).filter_by(
+        user_id=user_id, club_id=club_id
+    ).first()
+    if old_req:
+        db.session.delete(old_req)
+        db.session.flush()
+
+    # Auto-delete club if no members remain (cascade handles all other FK references)
+    remaining = db.session.query(Member).filter_by(club_id=club_id).count()
+    if remaining == 0:
+        _delete_club_cascade(club_id)
+
+    db.session.commit()
     return {"success": True, "message": "left_club"}
+
+
+def _delete_club_cascade(club_id: int):
+    """
+    Delete all rows that reference this club, then delete the club itself.
+    Correct FK order:
+      1. JoinRequest  (FK -> club)
+      2. Request      (FK -> club)
+      3. TeamMember / Availability / Match  (FK -> team -> ladder -> club)
+      4. Team         (FK -> ladder)
+      5. Ladder       (FK -> club)
+      6. Member       (FK -> club)  — must come after TeamMember is gone
+      7. Club
+
+    Does NOT commit — caller is responsible.
+    """
+    # 1. Join requests from any user for this club
+    JoinRequest.query.filter_by(club_id=club_id).delete(synchronize_session=False)
+
+    # 2. Legacy requests
+    Request.query.filter_by(club_id=club_id).delete(synchronize_session=False)
+
+    # 3-5. Ladders and everything hanging off them
+    for ladder in Ladder.query.filter_by(club_id=club_id).all():
+        for team in Team.query.filter_by(ladder_id=ladder.id).all():
+            for tm in TeamMember.query.filter_by(team_id=team.id).all():
+                Availability.query.filter_by(team_member_id=tm.id).delete(synchronize_session=False)
+            TeamMember.query.filter_by(team_id=team.id).delete(synchronize_session=False)
+            Match.query.filter(
+                (Match.home_team_id == team.id) | (Match.away_team_id == team.id)
+            ).delete(synchronize_session=False)
+            db.session.delete(team)
+        db.session.delete(ladder)
+
+    # 6. Members (FK club_id -> club.id)
+    Member.query.filter_by(club_id=club_id).delete(synchronize_session=False)
+
+    # 7. The club itself
+    club = db.session.get(Club, club_id)
+    if club:
+        db.session.delete(club)
+
+
+def _auto_delete_if_no_admin(club_id: int):
+    """
+    Delete the club if it has no admin members left.
+    Called after a user (who was club admin) gets deleted.
+    Does NOT commit — caller is responsible.
+    """
+    has_admin = db.session.query(Member).filter_by(
+        club_id=club_id, is_admin=True
+    ).first()
+    if not has_admin:
+        _delete_club_cascade(club_id)
+
+
+def delete_club(club_id: int, requesting_user_id: int, is_site_admin: bool):
+    """
+    Verwijder een club. Toegestaan voor de club admin of een site admin.
+    """
+    club = db.session.get(Club, club_id)
+    if not club:
+        return {"success": False, "error": "club_not_found"}
+
+    if not is_site_admin:
+        admin_member = db.session.query(Member).filter_by(
+            user_id=requesting_user_id, club_id=club_id, is_admin=True
+        ).first()
+        if not admin_member:
+            return {"success": False, "error": "forbidden"}
+
+    try:
+        _delete_club_cascade(club_id)
+        db.session.commit()
+        return {"success": True, "message": "club_deleted"}
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "error": str(e)}

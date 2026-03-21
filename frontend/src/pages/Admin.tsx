@@ -37,6 +37,33 @@ export default function Admin() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"club" | "team">("club");
 
+  // club delete state
+  const [deletingClub, setDeletingClub] = useState<Club | null>(null);
+  const [clubDeleteLoading, setClubDeleteLoading] = useState(false);
+
+  const handleDeleteClub = async () => {
+    if (!deletingClub) return;
+    setClubDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/admin/clubs/${deletingClub.id}`, {
+        method: "DELETE",
+        headers: authHeader(),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setClubs(clubs.filter((c) => c.id !== deletingClub.id));
+        showMessage(`Club "${deletingClub.name}" verwijderd`, "success");
+      } else {
+        showMessage(data.error || "Verwijderen mislukt", "error");
+      }
+    } catch {
+      showMessage("Netwerkfout", "error");
+    } finally {
+      setClubDeleteLoading(false);
+      setDeletingClub(null);
+    }
+  };
+
   const handleDelete = async (userId: number) => {
     if (!window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
       return;
@@ -354,7 +381,99 @@ export default function Admin() {
             )}
           </div>
         </div>
+
+        {/* ── CLUBS TABLE ── */}
+        <div className="admin-card" style={{ marginTop: "2rem" }}>
+          <div className="admin-card-header">
+            <h2>Clubs</h2>
+            <p>{clubs.length} club{clubs.length !== 1 ? "s" : ""}</p>
+          </div>
+          <div className="admin-table-wrapper">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>City</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clubs.length > 0 ? (
+                  clubs.map((club) => (
+                    <tr key={club.id}>
+                      <td>{club.name}</td>
+                      <td>{club.city}</td>
+                      <td>
+                        <button
+                          onClick={() => setDeletingClub(club)}
+                          style={{ backgroundColor: "#dc3545", color: "white", border: "none", padding: "5px 10px", borderRadius: "4px", cursor: "pointer" }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan={3} className="empty-cell">No clubs found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
+
+      {/* ── CLUB DELETE CONFIRM MODAL ── */}
+      {deletingClub && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem",
+          }}
+          onClick={() => setDeletingClub(null)}
+        >
+          <div
+            style={{
+              background: "linear-gradient(160deg, #2d1a1a 0%, #1e1212 100%)",
+              border: "1px solid rgba(239,68,68,0.3)",
+              borderRadius: "16px", width: "100%", maxWidth: "420px",
+              padding: "2rem", boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
+              <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>⚠️</div>
+              <h3 style={{ fontSize: "1.2rem", fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "1px", marginBottom: "0.5rem", color: "#f4f9f5" }}>
+                Club verwijderen?
+              </h3>
+              <p style={{ fontSize: "0.9rem", color: "#8fb59a", lineHeight: 1.6 }}>
+                Je staat op het punt om <strong style={{ color: "#f4f9f5" }}>{deletingClub.name}</strong> ({deletingClub.city}) permanent te verwijderen.
+                Alle leden, aanvragen en gerelateerde data gaan verloren.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: "0.75rem" }}>
+              <button
+                style={{ ...s.cancelBtn, flex: 1 }}
+                disabled={clubDeleteLoading}
+                onClick={() => setDeletingClub(null)}
+              >
+                Annuleren
+              </button>
+              <button
+                style={{
+                  flex: 1, padding: "10px", borderRadius: "8px",
+                  border: "1px solid rgba(239,68,68,0.5)", background: "rgba(239,68,68,0.2)",
+                  color: "#f87171", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: "0.95rem",
+                }}
+                disabled={clubDeleteLoading}
+                onClick={handleDeleteClub}
+              >
+                {clubDeleteLoading ? "Bezig…" : "✕ Ja, verwijderen"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

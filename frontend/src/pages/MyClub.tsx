@@ -41,6 +41,8 @@ export default function MyClub() {
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [requestFilter, setRequestFilter] = useState<"pending" | "all">("pending");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     if (!isClubAdmin) navigate("/clubs");
@@ -73,6 +75,30 @@ export default function MyClub() {
   useEffect(() => {
     if (tab === "requests") fetchJoinRequests();
   }, [tab, myClubId]);
+
+  const handleDeleteClub = async () => {
+    if (!myClubId) return;
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/clubs/${myClubId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowDeleteConfirm(false);
+        navigate("/clubs");
+      } else {
+        showMessage(data.error || "Verwijderen mislukt", "error");
+        setShowDeleteConfirm(false);
+      }
+    } catch {
+      showMessage("Kan geen verbinding maken met de server", "error");
+      setShowDeleteConfirm(false);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   const handleReview = async (id: number, action: "approve" | "reject") => {
     setActionLoading(id);
@@ -121,7 +147,73 @@ export default function MyClub() {
         <div className="admin-header">
           <h1>🏟️ {myClubName ?? "My Club"}</h1>
           <p>Beheer je club en leden</p>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            style={{
+              marginTop: "0.75rem",
+              padding: "8px 20px", borderRadius: "8px", border: "1px solid rgba(239,68,68,0.4)",
+              background: "rgba(239,68,68,0.1)", color: "#f87171",
+              cursor: "pointer", fontFamily: "inherit", fontWeight: 500, fontSize: "0.9rem",
+            }}
+          >
+            🗑️ Club verwijderen
+          </button>
         </div>
+
+        {/* ── DELETE CONFIRM MODAL ── */}
+        {showDeleteConfirm && (
+          <div
+            style={{
+              position: "fixed", inset: 0, zIndex: 400,
+              background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)",
+              display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem",
+            }}
+            onClick={() => setShowDeleteConfirm(false)}
+          >
+            <div
+              style={{
+                background: "linear-gradient(160deg, #2d1a1a 0%, #1e1212 100%)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                borderRadius: "16px", width: "100%", maxWidth: "420px",
+                padding: "2rem", boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+                animation: "fadeUp 0.25s ease both",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
+                <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>⚠️</div>
+                <h3 style={{ fontSize: "1.2rem", fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "1px", marginBottom: "0.5rem" }}>
+                  Club verwijderen?
+                </h3>
+                <p style={{ fontSize: "0.9rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
+                  Je staat op het punt om <strong style={{ color: "var(--text)" }}>{myClubName}</strong> permanent te verwijderen.
+                  Dit kan niet ongedaan worden gemaakt. Alle leden, aanvragen en data gaan verloren.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: "0.75rem" }}>
+                <button
+                  className="btn-secondary"
+                  style={{ flex: 1, padding: "10px" }}
+                  disabled={deleteLoading}
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Annuleren
+                </button>
+                <button
+                  style={{
+                    flex: 1, padding: "10px", borderRadius: "8px",
+                    border: "1px solid rgba(239,68,68,0.5)", background: "rgba(239,68,68,0.2)",
+                    color: "#f87171", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: "0.95rem",
+                  }}
+                  disabled={deleteLoading}
+                  onClick={handleDeleteClub}
+                >
+                  {deleteLoading ? "Bezig…" : "✕ Ja, verwijderen"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tab bar */}
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem" }}>
