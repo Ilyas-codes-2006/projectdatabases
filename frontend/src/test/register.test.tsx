@@ -31,33 +31,32 @@ describe("Register page", () => {
   it("shows error when passwords do not match", async () => {
     render(<Register />);
 
-    fireEvent.change(screen.getByLabelText("Voornaam"), {
+    fireEvent.change(screen.getByLabelText("First name"), {
       target: { value: "Jan" },
     });
-    fireEvent.change(screen.getByLabelText("Achternaam"), {
+    fireEvent.change(screen.getByLabelText("Last name"), {
       target: { value: "Janssen" },
     });
-    fireEvent.change(screen.getByLabelText("E-mailadres"), {
+    fireEvent.change(screen.getByLabelText("E-mail"), {
       target: { value: "jan@example.com" },
     });
-    fireEvent.change(screen.getByLabelText("Geboortedatum"), {
+    fireEvent.change(screen.getByLabelText("Date of birth"), {
       target: { value: "1990-01-01" },
     });
-    fireEvent.change(screen.getByLabelText("Wachtwoord"), {
+    fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "password1" },
     });
-    fireEvent.change(screen.getByLabelText("Bevestig wachtwoord"), {
+    fireEvent.change(screen.getByLabelText("Confirm password"), {
       target: { value: "password2" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Account aanmaken" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 
     await waitFor(() =>
       expect(mockShowMessage).toHaveBeenCalledWith(
-        "Wachtwoorden komen niet overeen",
-        "error"
-      )
+        "Passwords do not match!",
+        "error",
+      ),
     );
   });
 });
-
