@@ -58,8 +58,9 @@ export default function Login() {
         </div>
         <form onSubmit={handleLogin} className="auth-form">
           <div className="form-group">
-            <label>E-mailadres</label>
+            <label htmlFor="login-email">E-mailadres</label>
             <input
+              id="login-email"
               type="email"
               placeholder="jij@voorbeeld.com"
               required
@@ -68,8 +69,9 @@ export default function Login() {
             />
           </div>
           <div className="form-group">
-            <label>Wachtwoord</label>
+            <label htmlFor="login-password">Wachtwoord</label>
             <input
+              id="login-password"
               type="password"
               placeholder="Jouw wachtwoord"
               required

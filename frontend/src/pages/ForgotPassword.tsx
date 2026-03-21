@@ -40,8 +40,9 @@ export default function ForgotPassword() {
         </div>
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
-            <label>E-mailadres</label>
+            <label htmlFor="forgot-email">E-mailadres</label>
             <input
+              id="forgot-email"
               type="email"
               placeholder="jij@voorbeeld.com"
               required

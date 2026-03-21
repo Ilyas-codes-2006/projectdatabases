@@ -60,12 +60,12 @@ export default function ResetPassword() {
         {resetToken ? (
           <form onSubmit={handleSubmit} className="auth-form">
             <div className="form-group">
-              <label>Nieuw wachtwoord</label>
-              <input type="password" placeholder="Min. 8 tekens" required value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} />
+              <label htmlFor="reset-password">Nieuw wachtwoord</label>
+              <input id="reset-password" type="password" placeholder="Min. 8 tekens" required value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} />
             </div>
             <div className="form-group">
-              <label>Bevestig wachtwoord</label>
-              <input type="password" placeholder="Herhaal wachtwoord" required value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} />
+              <label htmlFor="reset-password-confirm">Bevestig wachtwoord</label>
+              <input id="reset-password-confirm" type="password" placeholder="Herhaal wachtwoord" required value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} />
             </div>
             <button type="submit" className="btn-submit" disabled={loading}>
               {loading ? "Opslaan…" : "Wachtwoord instellen"}
