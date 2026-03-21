@@ -65,7 +65,14 @@ export default function ChangeEmail() {
   return (
     <div className="profile-wrapper">
       <div className="profile-card" style={{ maxWidth: "400px" }}>
-        <h2 className="profile-section-title" style={{ textAlign: "center" }}>
+        <h2 className="profile-section-title"
+            style={{
+            textAlign: "center",
+            fontSize: "1.8rem",
+            marginTop: "0",
+            marginBottom: "1.5rem"
+          }}
+        >
           Change Email
         </h2>
 

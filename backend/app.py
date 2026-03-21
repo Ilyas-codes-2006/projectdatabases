@@ -6,7 +6,7 @@ from config import config_data as config
 from datetime import date
 from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
-    admin_required,change_user_email, change_user_name
+    admin_required,change_user_email, change_user_name, change_user_birthday
 from teams import show_teams, create_team, join_team
 from clubs import show_clubs, leave_club, request_join
 
@@ -521,6 +521,27 @@ def create_app(test_config=None):
         else:
             return jsonify({"error": result['error']}), 400
 
+    @app.route("/api/profile/change-birthday", methods=["PUT"])
+    @token_required
+    def change_birthday():
+        user_id = g.current_user['sub']
+        data = request.get_json()
+
+        if not data or 'new_birthday' not in data or 'password' not in data:
+            return jsonify({"error": "new_birthday and password are required"}), 400
+
+        # Converteer string naar date object, hetzelfde zoals register_user
+        try:
+            new_birthday_date = date.fromisoformat(data['new_birthday'])
+        except ValueError:
+            return jsonify({"error": "Use YYYY-MM-DD"}), 400
+
+        result = change_user_birthday(user_id, new_birthday_date, data['password'])
+
+        if result['success']:
+            return jsonify({"message": result['message']}), 200
+        else:
+            return jsonify({"error": result['error']}), 400
     @app.route("/api/notifications", methods=["GET"])
     @token_required
     def get_notifications():
