@@ -6,7 +6,7 @@ from config import config_data as config
 from datetime import date
 from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
-    admin_required,change_user_email, change_user_name
+    admin_required,change_user_email, change_user_name, change_user_birthday
 from teams import show_teams, create_team, join_team
 from clubs import show_clubs, leave_club, request_join
 from email_validator import validate_email, EmailNotValidError
@@ -544,5 +544,66 @@ def create_app(test_config=None):
             return jsonify({"message": result['message']}), 200
         else:
             return jsonify({"error": result['error']}), 400
+
+    @app.route("/api/profile/change-birthday", methods=["PUT"])
+    @token_required
+    def change_birthday():
+        user_id = g.current_user['sub']
+        data = request.get_json()
+
+        if not data or 'new_birthday' not in data or 'password' not in data:
+            return jsonify({"error": "new_birthday and password are required"}), 400
+
+        # Converteer string naar date object, hetzelfde zoals register_user
+        try:
+            new_birthday_date = date.fromisoformat(data['new_birthday'])
+        except ValueError:
+            return jsonify({"error": "Use YYYY-MM-DD"}), 400
+
+        result = change_user_birthday(user_id, new_birthday_date, data['password'])
+
+        if result['success']:
+            return jsonify({"message": result['message']}), 200
+        else:
+            return jsonify({"error": result['error']}), 400
+    @app.route("/api/notifications", methods=["GET"])
+    @token_required
+    def get_notifications():
+        """
+        Geeft alle openstaande join-verzoeken terug voor clubs
+        waar de ingelogde gebruiker club-admin is.
+        """
+        user_id = int(g.current_user["sub"])
+
+        # Vind alle clubs waar deze user admin van is
+        admin_memberships = db.session.query(Member).filter_by(
+            user_id=user_id, is_admin=True
+        ).all()
+
+        if not admin_memberships:
+            return jsonify([]), 200
+
+        admin_club_ids = [m.club_id for m in admin_memberships]
+
+        # Haal alle pending requests op voor die clubs
+        pending_requests = db.session.query(Request, User, Club).join(
+            User, User.id == Request.user_id
+        ).join(
+            Club, Club.id == Request.club_id
+        ).filter(
+            Request.club_id.in_(admin_club_ids),
+            Request.accepted == False
+        ).all()
+
+        notifications = []
+        for req, user, club in pending_requests:
+            notifications.append({
+                "user_id": user.id,
+                "user_name": f"{user.first_name} {user.last_name}",
+                "club_id": club.id,
+                "club_name": club.name,
+            })
+
+        return jsonify(notifications), 200
 
     return app

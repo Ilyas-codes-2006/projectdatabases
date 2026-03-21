@@ -255,3 +255,24 @@ def change_user_name(user_id, new_first_name, new_last_name, password):
     except Exception as e:
         db.session.rollback()
         return {"success": False, "error": str(e)}
+def change_user_birthday(user_id, new_birthday, password):
+    user = db.session.get(User, user_id)
+    if not user:
+        return {"success": False, "error": "User not found"}
+
+    # Check wachtwoord
+    if not check_password_hash(user.password, password):
+        return {"success": False, "error": "Incorrect password"}
+
+    # Check of het hetzelfde is
+    if user.date_of_birth == new_birthday:
+        return {"success": False, "error": "New birthday is the same as current"}
+
+    #Verander birthday
+    user.date_of_birth = new_birthday
+    try:
+        db.session.commit()
+        return {"success": True, "message": "Birthday updated successfully"}
+    except Exception as e:
+        db.session.rollback()
+        return {"success": False, "error": str(e)}

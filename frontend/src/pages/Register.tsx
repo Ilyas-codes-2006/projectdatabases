@@ -79,67 +79,32 @@ export default function Register() {
         <form onSubmit={handleRegister} className="auth-form">
           <div className="form-row">
             <div className="form-group">
-              <label>First name</label>
-              <input
-                type="text"
-                placeholder="John"
-                required
-                value={registerData.first_name}
-                onChange={update("first_name")}
-              />
+              <label htmlFor="register-firstname">First name</label>
+              <input id="register-firstname" type="text" placeholder="John" required value={registerData.first_name} onChange={update("first_name")} />
             </div>
             <div className="form-group">
-              <label>Last name</label>
-              <input
-                type="text"
-                placeholder="Doe"
-                required
-                value={registerData.last_name}
-                onChange={update("last_name")}
-              />
+              <label htmlFor="register-lastname">Last name</label>
+              <input id="register-lastname" type="text" placeholder="Doe" required value={registerData.last_name} onChange={update("last_name")} />
             </div>
           </div>
           <div className="form-row">
             <div className="form-group">
-              <label>E-mail</label>
-              <input
-                type="email"
-                placeholder="john.doe@example.com"
-                required
-                value={registerData.email}
-                onChange={update("email")}
-              />
+              <label htmlFor="register-email">E-mail</label>
+              <input id="register-email" type="email" placeholder="john.doe@example.com" required value={registerData.email} onChange={update("email")} />
             </div>
             <div className="form-group">
-              <label>Date of birth</label>
-              <input
-                type="date"
-                required
-                value={registerData.date_of_birth}
-                onChange={update("date_of_birth")}
-              />
+              <label htmlFor="register-dob">Date of birth</label>
+              <input id="register-dob" type="date" required value={registerData.date_of_birth} onChange={update("date_of_birth")} />
             </div>
           </div>
           <div className="form-row">
             <div className="form-group">
-              <label>Password</label>
-              <input
-                type="password"
-                placeholder="Min. 8 characters"
-                required
-                value={registerData.password}
-                onChange={update("password")}
-              />
+              <label htmlFor="register-password">Password</label>
+              <input id="register-password" type="password" placeholder="Min. 8 characters" required value={registerData.password} onChange={update("password")} />
             </div>
             <div className="form-group">
-              <label>Confirm password</label>
-              <input
-                type="password"
-                placeholder="Repeat wachtwoord"
-                required
-                value={registerData.confirm_password}
-                onChange={update("confirm_password")}
-              />
+              <label htmlFor="register-password-confirm">Confirm password</label>
+              <input id="register-password-confirm" type="password" placeholder="Repeat password" required value={registerData.confirm_password} onChange={update("confirm_password")} />
             </div>
           </div>
           <button type="submit" className="btn-submit" disabled={loading}>

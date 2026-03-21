@@ -43,8 +43,9 @@ export default function ForgotPassword() {
         </div>
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
-            <label>E-mail</label>
+            <label htmlFor="forgot-email">E-mail</label>
             <input
+              id="forgot-email"
               type="email"
               placeholder="john.doe@example.com"
               required
