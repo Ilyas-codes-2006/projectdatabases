@@ -521,5 +521,45 @@ def create_app(test_config=None):
         else:
             return jsonify({"error": result['error']}), 400
 
+    @app.route("/api/notifications", methods=["GET"])
+    @token_required
+    def get_notifications():
+        """
+        Geeft alle openstaande join-verzoeken terug voor clubs
+        waar de ingelogde gebruiker club-admin is.
+        """
+        user_id = int(g.current_user["sub"])
+
+        # Vind alle clubs waar deze user admin van is
+        admin_memberships = db.session.query(Member).filter_by(
+            user_id=user_id, is_admin=True
+        ).all()
+
+        if not admin_memberships:
+            return jsonify([]), 200
+
+        admin_club_ids = [m.club_id for m in admin_memberships]
+
+        # Haal alle pending requests op voor die clubs
+        pending_requests = db.session.query(Request, User, Club).join(
+            User, User.id == Request.user_id
+        ).join(
+            Club, Club.id == Request.club_id
+        ).filter(
+            Request.club_id.in_(admin_club_ids),
+            Request.accepted == False
+        ).all()
+
+        notifications = []
+        for req, user, club in pending_requests:
+            notifications.append({
+                "user_id": user.id,
+                "user_name": f"{user.first_name} {user.last_name}",
+                "club_id": club.id,
+                "club_name": club.name,
+            })
+
+        return jsonify(notifications), 200
+
     return app
 
