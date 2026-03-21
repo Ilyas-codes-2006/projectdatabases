@@ -23,7 +23,7 @@ export default function ForgotPassword() {
       showMessage(data.message || data.error, res.ok ? "success" : "error");
       if (res.ok) setForgotEmail("");
     } catch {
-      showMessage("Kan geen verbinding maken met de server", "error");
+      showMessage("Could not connect to server.", "error");
     } finally {
       setLoading(false);
     }
@@ -35,26 +35,29 @@ export default function ForgotPassword() {
       <div className="auth-card">
         <div className="auth-header">
           <span className="auth-icon">🔑</span>
-          <h2>Wachtwoord vergeten</h2>
-          <p>Vul je e-mailadres in. Als het bij ons bekend is, sturen we je een resetlink.</p>
+          <h2>Forgot password</h2>
+          <p>
+            Fill in your e-mail. If your e-mail has been registeren, we will
+            send a mail containing the resetlink.
+          </p>
         </div>
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
-            <label>E-mailadres</label>
+            <label>E-mail</label>
             <input
               type="email"
-              placeholder="jij@voorbeeld.com"
+              placeholder="john.doe@example.com"
               required
               value={forgotEmail}
               onChange={(e) => setForgotEmail(e.target.value)}
             />
           </div>
           <button type="submit" className="btn-submit" disabled={loading}>
-            {loading ? "Versturen…" : "Stuur resetlink"}
+            {loading ? "Sending…" : "Send resetlink"}
           </button>
         </form>
         <p className="auth-switch">
-          <button onClick={() => navigate("/login")}>← Terug naar inloggen</button>
+          <button onClick={() => navigate("/login")}>← Back to log in</button>
         </p>
       </div>
     </div>
