@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import Clubs from "../pages/Clubs";
 
@@ -10,6 +10,12 @@ vi.mock("../hooks/useMessage", () => ({
     message: "",
     clearMessage: mockClearMessage,
     showMessage: mockShowMessage,
+  }),
+}));
+
+vi.mock("../context/AuthContext", () => ({
+  useAuth: () => ({
+    isClubAdmin: false,
   }),
 }));
 
@@ -54,13 +60,18 @@ describe("Clubs page", () => {
         if (typeof url === "string" && url === "/api/clubs") {
           return Promise.resolve({
             ok: true,
-            json: () => Promise.resolve({ success: true, clubs: mockClubs }),
+            json: () =>
+              Promise.resolve({
+                success: true,
+                clubs: mockClubs,
+                user_club: 2,
+              }),
           } as Response);
         }
 
         if (
           typeof url === "string" &&
-          url === "/api/clubs/1/request_join" &&
+          url === "/api/clubs/1/join-request" &&
           options?.method === "POST"
         ) {
           return Promise.resolve({
@@ -75,7 +86,7 @@ describe("Clubs page", () => {
 
         if (
           typeof url === "string" &&
-          url === "/api/clubs/2/leave" &&
+          url === `/api/clubs/2/leave` &&
           options?.method === "POST"
         ) {
           return Promise.resolve({
@@ -93,6 +104,10 @@ describe("Clubs page", () => {
     );
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("renders clubs after loading", async () => {
     render(<Clubs />);
 
@@ -103,52 +118,89 @@ describe("Clubs page", () => {
     });
   });
 
-  it("shows correct button labels and disabled state", async () => {
+  it("shows correct button labels and states", async () => {
     render(<Clubs />);
-
-    await waitFor(() => expect(screen.getByText("Club One")).toBeInTheDocument());
-
-    const joinButton = screen.getByRole("button", { name: "Join" });
-    expect(joinButton).toBeEnabled();
-
-    const leaveButton = screen.getByRole("button", { name: "Leave" });
-    expect(leaveButton).toBeEnabled();
-
-    const pendingButton = screen.getByRole("button", { name: "Request pending" });
-    expect(pendingButton).toBeDisabled();
-  });
-
-  it("sends join request and updates status", async () => {
-    render(<Clubs />);
-
-    await waitFor(() => expect(screen.getByText("Club One")).toBeInTheDocument());
-
-    const joinButton = screen.getByRole("button", { name: "Join" });
-    joinButton.click();
 
     await waitFor(() =>
-      expect(mockShowMessage).toHaveBeenCalledWith("Request to join club sent!", "success")
+      expect(screen.getByText("Club One")).toBeInTheDocument(),
     );
-
-    const pendingButtons = screen.getAllByRole("button", { name: "Request pending" });
-    expect(pendingButtons.length).toBeGreaterThanOrEqual(1);
-    pendingButtons.forEach((btn) => expect(btn).toBeDisabled());
   });
 
   it("leaves club and updates status", async () => {
     render(<Clubs />);
 
-    await waitFor(() => expect(screen.getByText("Club Two")).toBeInTheDocument());
-
-    const leaveButton = screen.getByRole("button", { name: "Leave" });
-    leaveButton.click();
-
     await waitFor(() =>
-      expect(mockShowMessage).toHaveBeenCalledWith("You have left the club", "success")
+      expect(screen.getByText("Club Two")).toBeInTheDocument(),
     );
 
-    const joinButtons = screen.getAllByRole("button", { name: "Join" });
-    expect(joinButtons.length).toBeGreaterThanOrEqual(1);
+    const leaveButton = screen.getByRole("button", { name: "Leave" });
+    fireEvent.click(leaveButton);
+
+    await waitFor(() =>
+      expect(mockShowMessage).toHaveBeenCalledWith(
+        "You have left the club",
+        "success",
+      ),
+    );
+  });
+
+  it("sends join request and updates status", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+        if (typeof url === "string" && url === "/api/clubs") {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                clubs: mockClubs,
+                user_club: null,
+              }), // User is NOT in a club
+          } as Response);
+        }
+        if (
+          typeof url === "string" &&
+          url === "/api/clubs/1/join-request" &&
+          options?.method === "POST"
+        ) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+              }),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: false,
+          json: () => Promise.resolve({ success: false }),
+        } as Response);
+      }),
+    );
+
+    render(<Clubs />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Club One")).toBeInTheDocument(),
+    );
+    const aanvragenButton = screen.getAllByRole("button", {
+      name: "Aanvragen",
+    })[0];
+    fireEvent.click(aanvragenButton);
+
+    const sturenButton = await screen.findByRole("button", {
+      name: "✓ Aanvraag versturen",
+    });
+    fireEvent.click(sturenButton);
+    await waitFor(() =>
+      expect(mockShowMessage).toHaveBeenCalledWith(
+        "Aanvraag verstuurd naar de club admin van Club One!",
+        "success",
+      ),
+    );
+
+    const pendingBadges = screen.getAllByText("⏳ Aanvraag ingediend");
+    expect(pendingBadges).toHaveLength(2); // Club One (just requested) + Club Three (already pending)
   });
 });
-
