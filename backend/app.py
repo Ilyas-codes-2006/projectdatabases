@@ -589,13 +589,13 @@ def create_app(test_config=None):
         admin_club_ids = [m.club_id for m in admin_memberships]
 
         # Haal alle pending requests op voor die clubs
-        pending_requests = db.session.query(Request, User, Club).join(
-            User, User.id == Request.user_id
+        pending_requests = db.session.query(JoinRequest, User, Club).join(
+            User, User.id == JoinRequest.user_id
         ).join(
-            Club, Club.id == Request.club_id
+            Club, Club.id == JoinRequest.club_id
         ).filter(
-            Request.club_id.in_(admin_club_ids),
-            Request.accepted == False
+            JoinRequest.club_id.in_(admin_club_ids),
+            JoinRequest.status == 'pending'
         ).all()
 
         notifications = []
