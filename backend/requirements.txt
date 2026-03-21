@@ -7,3 +7,4 @@ Flask-Cors
 PyJWT
 Flask-Mail
 pytest
+email_validator

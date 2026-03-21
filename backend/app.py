@@ -9,11 +9,7 @@ from auth import register_user, login_user, token_required, mail, request_passwo
     admin_required,change_user_email, change_user_name
 from teams import show_teams, create_team, join_team
 from clubs import show_clubs, leave_club, request_join
-
-from flask import Flask
-from flask_cors import CORS
-from db import db
-from flask_mail import Mail
+from email_validator import validate_email, EmailNotValidError
 
 mail = Mail()
 
@@ -63,7 +59,14 @@ def create_app(test_config=None):
         if not data or 'email' not in data or 'password' not in data:
             return jsonify({"error": "Email and password are required"}), 400
 
-        result = login_user(data['email'], data['password'])
+        email = data['email'].lower()
+        try:
+            res = validate_email(email)
+            email = res.normalized
+        except EmailNotValidError:
+            return jsonify({"error": "Invalid e-mail."}), 400
+
+        result = login_user(email, data['password'])
 
         if result['success']:
             return jsonify({
@@ -93,6 +96,13 @@ def create_app(test_config=None):
         except ValueError:
             return jsonify({"error": "Ongeldige geboortedatum. Gebruik YYYY-MM-DD."}), 400
 
+        email = data['email'].lower()
+        try:
+            res = validate_email(email)
+            email = res.normalized
+        except EmailNotValidError:
+            return jsonify({"error": "Invalid e-mail."}), 400
+
         result = register_user(
             last_name=data['last_name'],
             first_name=data['first_name'],
@@ -100,7 +110,7 @@ def create_app(test_config=None):
             bio=data.get('bio', ''),
             is_admin=data.get('is_admin', False),
             date_of_birth=parsed_dob,
-            email=data['email']
+            email=email
         )
 
         if result['success']:
@@ -152,23 +162,23 @@ def create_app(test_config=None):
             return jsonify({"error": "You cannot delete yourself"}), 400
 
         user_name = f"{user.first_name} {user.last_name}"
-        
+
         try:
             # Link is: User -> Member
             member_ids = [m.id for m in Member.query.filter_by(user_id=user_id).all()]
-            
+
             if member_ids:
                 # TeamMember links to Member, NOT directly to User
                 team_members = TeamMember.query.filter(TeamMember.member_id.in_(member_ids)).all()
                 team_member_ids = [tm.id for tm in team_members]
-                
+
                 if team_member_ids:
                     Availability.query.filter(Availability.team_member_id.in_(team_member_ids)).delete(synchronize_session=False)
-                
+
                 TeamMember.query.filter(TeamMember.member_id.in_(member_ids)).delete(synchronize_session=False)
 
             Member.query.filter_by(user_id=user_id).delete(synchronize_session=False)
-            
+
             PasswordResetToken.query.filter_by(user_id=user_id).delete(synchronize_session=False)
             Request.query.filter_by(user_id=user_id).delete(synchronize_session=False)
 
@@ -180,7 +190,7 @@ def create_app(test_config=None):
 
             db.session.delete(user)
             db.session.commit()
-            
+
             return jsonify({"message": f"User {user_name} deleted successfully"}), 200
         except Exception as e:
             db.session.rollback()
@@ -501,7 +511,15 @@ def create_app(test_config=None):
         user_id = g.current_user['sub']
         if not data or 'new_email' not in data or 'password' not in data:
             return jsonify({"error": "new_email and password are required"}), 400
-        result = change_user_email(user_id, data['new_email'], data['password'])
+
+        new_email = data['new_email'].lower()
+        try:
+            res = validate_email(new_email)
+            new_email = res.normalized
+        except EmailNotValidError:
+            return jsonify({"error": "New email is invalid!"}), 400
+
+        result = change_user_email(user_id, new_email, data['password'])
         if result['success']:
             return jsonify({"message": result['message']}), 200
         else:
@@ -522,4 +540,3 @@ def create_app(test_config=None):
             return jsonify({"error": result['error']}), 400
 
     return app
-

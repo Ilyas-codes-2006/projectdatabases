@@ -20,6 +20,7 @@ mail = Mail()
 # ---------------------------------------------------------------------------
 
 def register_user(last_name, first_name, password, bio, is_admin, date_of_birth, email):
+    # email should have been validated in app.py register()
     password_hash = generate_password_hash(password)
 
     if User.query.filter_by(email=email).first():
@@ -64,6 +65,7 @@ def _generate_token(user_id: int, email: str, first_name: str, is_admin: bool) -
 
 
 def login_user(email: str, password: str) -> dict:
+    # email should have been validated in app.py in login()
     user = User.query.filter_by(email=email).first()
 
     # We gebruiken user.password omdat dit zo in je db.py model gedefinieerd staat
