@@ -2,7 +2,7 @@ def test_register_success(client, clean_users_db):
     payload = {
         "first_name": "john",
         "last_name": "doe",
-        "email": "john@example.com",
+        "email": "john.doe@gmail.com",
         "date_of_birth": "2000-05-15",
         "bio": "Ik speel graag tennis",
         "is_admin": False,
@@ -38,7 +38,7 @@ def test_register_duplicate_email(client, clean_users_db):
     payload = {
         "first_name": "john",
         "last_name": "doe",
-        "email": "john@example.com",
+        "email": "john.doe@gmail.com",
         "date_of_birth": "2000-05-15",
         "bio": "Ik speel graag tennis",
         "is_admin": False,

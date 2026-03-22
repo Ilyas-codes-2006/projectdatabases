@@ -1,23 +1,23 @@
 import secrets
 from datetime import datetime, timezone, timedelta
 
-# Importeer direct de database en modellen uit je backend
 from db import db, User, PasswordResetToken
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+EMAIL = "jan.jansen@gmail.com"
+PASSWORD = "oudwachtwoord123"
+
+
 def register_user(client):
-    """Registreer een testgebruiker en geef het e-mailadres + wachtwoord terug."""
-    # Aangepast naar de verplichte velden uit app.py
     payload = {
         "first_name": "jan",
         "last_name": "jansen",
-        "email": "jan@example.com",
+        "email": EMAIL,
         "date_of_birth": "1995-01-01",
-        "password": "oudwachtwoord123"
+        "password": PASSWORD,
     }
     res = client.post("/api/auth/register", json=payload)
     assert res.status_code == 201, res.get_json()
@@ -25,11 +25,9 @@ def register_user(client):
 
 
 def get_reset_token(client, email: str) -> str:
-    """Haal de meest recente reset-token rechtstreeks uit de database via ORM."""
     with client.application.app_context():
         user = User.query.filter_by(email=email).first()
         assert user is not None, "Gebruiker niet gevonden in database"
-
         token_record = (
             PasswordResetToken.query
             .filter_by(user_id=user.id)
@@ -41,12 +39,9 @@ def get_reset_token(client, email: str) -> str:
 
 
 def expire_token(client, token: str):
-    """Zet de vervaldatum van een token naar het verleden (simuleer verlopen token)."""
     with client.application.app_context():
         token_record = PasswordResetToken.query.filter_by(token=token).first()
         assert token_record is not None, "Te verlopen token niet gevonden"
-
-        # Omdat expires_at een DATE is, trekken we er 1 dag af om zeker te zijn in het verleden
         token_record.expires_at = datetime.now(timezone.utc) - timedelta(days=1)
         db.session.commit()
 
@@ -58,14 +53,14 @@ def expire_token(client, token: str):
 def test_forgot_password_known_email(client, clean_users_db):
     """Bekende e-mail → altijd 200 + neutrale boodschap."""
     register_user(client)
-    res = client.post("/api/auth/forgot-password", json={"email": "jan@example.com"})
+    res = client.post("/api/auth/forgot-password", json={"email": EMAIL})
     assert res.status_code == 200, res.get_json()
     assert "message" in res.get_json()
 
 
 def test_forgot_password_unknown_email(client, clean_users_db):
     """Onbekende e-mail → ook 200 (user enumeration voorkomen)."""
-    res = client.post("/api/auth/forgot-password", json={"email": "bestaat.niet@example.com"})
+    res = client.post("/api/auth/forgot-password", json={"email": "bestaat.niet@gmail.com"})
     assert res.status_code == 200, res.get_json()
     assert "message" in res.get_json()
 
@@ -80,8 +75,8 @@ def test_forgot_password_missing_email(client, clean_users_db):
 def test_forgot_password_creates_token(client, clean_users_db):
     """Na een aanvraag moet er een token in de database staan."""
     register_user(client)
-    client.post("/api/auth/forgot-password", json={"email": "jan@example.com"})
-    token = get_reset_token(client, "jan@example.com")
+    client.post("/api/auth/forgot-password", json={"email": EMAIL})
+    token = get_reset_token(client, EMAIL)
     assert token is not None
 
 
@@ -99,11 +94,9 @@ def test_reset_password_success(client, clean_users_db):
         "token": token,
         "new_password": "nieuwwachtwoord123"
     })
-
     assert res.status_code == 200, res.get_json()
     assert "message" in res.get_json()
 
-    # Controleer of inloggen met het nieuwe wachtwoord werkt
     login_res = client.post("/api/auth/login", json={
         "email": email,
         "password": "nieuwwachtwoord123"
@@ -196,10 +189,8 @@ def test_forgot_password_overwrites_old_token(client, clean_users_db):
 
     assert first_token != second_token
 
-    # Eerste token mag niet meer werken (verwijderd door de tweede aanvraag in je auth code)
     res = client.post("/api/auth/reset-password", json={"token": first_token, "new_password": "wachtwoord123"})
     assert res.status_code == 400, res.get_json()
 
-    # Tweede token moet wél werken
     res2 = client.post("/api/auth/reset-password", json={"token": second_token, "new_password": "wachtwoord123"})
     assert res2.status_code == 200, res2.get_json()

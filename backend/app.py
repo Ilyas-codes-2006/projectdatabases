@@ -6,13 +6,15 @@ from config import config_data as config
 from datetime import date
 from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
-    admin_required,change_user_email, change_user_name, change_user_birthday
+    admin_required, change_user_email, change_user_name, change_user_birthday
 from teams import show_teams, create_team, join_team
 from clubs import show_clubs, leave_club, request_join
 from email_validator import validate_email, EmailNotValidError
-from clubs import show_clubs, request_new_club, request_join_club, request_join, review_join_request, leave_club, delete_club, _delete_club_cascade, _auto_delete_if_no_admin
+from clubs import show_clubs, request_new_club, request_join_club, request_join, review_join_request, leave_club, \
+    delete_club, _delete_club_cascade, _auto_delete_if_no_admin
 
 mail = Mail()
+
 
 def create_app(test_config=None):
     app = Flask(__name__)
@@ -105,10 +107,11 @@ def create_app(test_config=None):
             return jsonify({"error": "Invalid e-mail."}), 400
 
         today = date.today()
-        latest_accepting_date = date(today.year-6, today.month, today.day)
+        latest_accepting_date = date(today.year - 6, today.month, today.day)
 
         if parsed_dob > latest_accepting_date:
-            return jsonify({"error": "Invalid date of birth. You have to be at least 6 years old to have an account!"}), 400
+            return jsonify(
+                {"error": "Invalid date of birth. You have to be at least 6 years old to have an account!"}), 400
 
         result = register_user(
             last_name=data['last_name'],
@@ -124,7 +127,6 @@ def create_app(test_config=None):
             return jsonify({"message": "User registered successfully"}), 201
         else:
             return jsonify({"error": result['error']}), 400
-
 
     @app.route("/api/admin/users", methods=["GET"])
     @token_required
@@ -169,7 +171,7 @@ def create_app(test_config=None):
             return jsonify({"error": "You cannot delete yourself"}), 400
 
         user_name = f"{user.first_name} {user.last_name}"
-        
+
         try:
             members = Member.query.filter_by(user_id=user_id).all()
             member_ids = [m.id for m in members]
@@ -180,14 +182,15 @@ def create_app(test_config=None):
                 # TeamMember links to Member, NOT directly to User
                 team_members = TeamMember.query.filter(TeamMember.member_id.in_(member_ids)).all()
                 team_member_ids = [tm.id for tm in team_members]
-                
+
                 if team_member_ids:
-                    Availability.query.filter(Availability.team_member_id.in_(team_member_ids)).delete(synchronize_session=False)
-                
+                    Availability.query.filter(Availability.team_member_id.in_(team_member_ids)).delete(
+                        synchronize_session=False)
+
                 TeamMember.query.filter(TeamMember.member_id.in_(member_ids)).delete(synchronize_session=False)
 
             Member.query.filter_by(user_id=user_id).delete(synchronize_session=False)
-            
+
             PasswordResetToken.query.filter_by(user_id=user_id).delete(synchronize_session=False)
             Request.query.filter_by(user_id=user_id).delete(synchronize_session=False)
             JoinRequest.query.filter_by(user_id=user_id).delete(synchronize_session=False)
@@ -205,7 +208,7 @@ def create_app(test_config=None):
 
             db.session.delete(user)
             db.session.commit()
-            
+
             return jsonify({"message": f"User {user_name} deleted successfully"}), 200
         except Exception as e:
             db.session.rollback()
@@ -329,9 +332,11 @@ def create_app(test_config=None):
         from datetime import date
         member = db.session.query(Member).filter_by(user_id=user_id).first()
         if not member:
-            member = Member(user_id=user_id, club_id=None, joined_at=date.today())
-            db.session.add(member)
-            db.session.flush()
+            if new_team_id is None:
+                # No member row and no team to assign — nothing to do
+                return jsonify({"message": "Team succesvol bijgewerkt"}), 200
+            # Cannot assign a team without a club — admin must assign club first
+            return jsonify({"error": "Gebruiker heeft nog geen club. Wijs eerst een club toe."}), 400
 
         # Verwijder huidig team membership
         db.session.query(TeamMember).filter_by(member_id=member.id).delete()
@@ -614,7 +619,7 @@ def create_app(test_config=None):
         import json, base64
         if request.content_type and "multipart/form-data" in request.content_type:
             club_name = (request.form.get("club_name") or "").strip()
-            city      = (request.form.get("city") or "").strip()
+            city = (request.form.get("city") or "").strip()
             motivation = (request.form.get("motivation") or "").strip()
             files = request.files.getlist("attachments")
             attachments = []
@@ -630,8 +635,8 @@ def create_app(test_config=None):
             data = request.get_json()
             if not data:
                 return jsonify({"error": "Invalid request"}), 400
-            club_name  = data.get("club_name", "").strip()
-            city       = data.get("city", "").strip()
+            club_name = data.get("club_name", "").strip()
+            city = data.get("city", "").strip()
             motivation = data.get("motivation", "").strip()
             attachments = []
 
