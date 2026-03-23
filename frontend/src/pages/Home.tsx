@@ -4,8 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useMessage } from "../hooks/useMessage";
 import MessageBanner from "../components/MessageBanner";
 import courtsBg from "../assets/court.jpeg";
-
-import Calendar from "../components/Calendar.tsx";
+import Calendar from "../components/Calendar";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -13,7 +12,6 @@ export default function Home() {
   const { loggedInUser } = useAuth();
   const { message, clearMessage, showMessage } = useMessage();
 
-  // Show messages passed via navigate state (login welcome, register success, reset success)
   useEffect(() => {
     if (location.state?.message) {
       showMessage(location.state.message, location.state.type ?? "success");
@@ -24,12 +22,13 @@ export default function Home() {
   return (
     <>
       <MessageBanner message={message} onClose={clearMessage} />
+
       <main className="hero">
         <div
           className="hero-bg"
           style={{ backgroundImage: `url(${courtsBg})` }}
         />
-
+        <div className="court-lines" />
         <div className="hero-content">
           <p className="hero-eyebrow">Your Club. Your Game.</p>
           <h1 className="hero-title">
@@ -63,18 +62,9 @@ export default function Home() {
             </div>
           )}
         </div>
-
         {loggedInUser && (
-          <div className="relative z-10 w-full max-w-2xl mx-auto mt-12 mb-12 px-4">
-            <div className="bg-white/95 backdrop-blur-sm p-8 rounded-2xl shadow-2xl">
-              <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">
-                Your Availability
-              </h2>
-              <p className="text-center text-gray-600 mb-6">
-                Select on which days you are available to play matches.
-              </p>
-              <Calendar />
-            </div>
+          <div className="hero-calendar-wrapper">
+            <Calendar showMessage={showMessage} />
           </div>
         )}
         {!loggedInUser && (

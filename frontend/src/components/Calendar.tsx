@@ -1,8 +1,37 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useMessage } from "../hooks/useMessage";
 
-export default function Calendar() {
+interface CalendarProps {
+  showMessage: (text: string, type: "error" | "success") => void;
+}
+
+export default function Calendar({ showMessage }: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [availableDates, setAvailableDates] = useState<string[]>([]);
+  useEffect(() => {
+    const fetchAvailability = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
+        const response = await fetch("http://localhost:5000/api/availability", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableDates(data.dates);
+        }
+      } catch (error) {
+        console.error("Error while retrieving availability:", error);
+      }
+    };
+
+    fetchAvailability();
+  }, []);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -40,44 +69,59 @@ export default function Calendar() {
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
 
-  const saveAvailability = () => {
-    console.log("Datums om op te slaan:", availableDates);
-    alert(`You have saved ${availableDates.length} available days!`);
-    // TODO add fetch() for backend
+  const saveAvailability = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const response = await fetch("/api/availability", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ dates: availableDates }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        showMessage("🎉 " + data.message, "success");
+      } else {
+        showMessage("Error: " + data.error, "error");
+      }
+    } catch (error) {
+      console.error("Error while saving:", error);
+      showMessage(
+        "Something went wrong while trying to connect to the server.",
+        "error",
+      );
+    }
   };
 
   return (
-    <div className="max-w-md w-full mx-auto bg-white p-6 rounded-lg shadow-md border border-gray-200">
-      <div className="flex justify-between items-center mb-4">
-        <button
-          onClick={prevMonth}
-          className="p-2 text-gray-600 hover:bg-gray-100 rounded-full cursor-pointer"
-        >
+    <div className="calendar-container">
+      <div className="calendar-header">
+        <button onClick={prevMonth} className="calendar-nav-btn">
           &larr;
         </button>
-        <h2 className="text-xl font-bold text-gray-800">
-          {monthNames[month]} {year}
+        <h2>
+          {monthNames[month]}{" "}
+          <span style={{ color: "var(--text-muted)" }}>{year}</span>
         </h2>
-        <button
-          onClick={nextMonth}
-          className="p-2 text-gray-600 hover:bg-gray-100 rounded-full cursor-pointer"
-        >
+        <button onClick={nextMonth} className="calendar-nav-btn">
           &rarr;
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 mb-2 text-center text-sm font-medium text-gray-500">
-        <div>Mo</div>
-        <div>Tue</div>
-        <div>Wed</div>
-        <div>Thu</div>
-        <div>Fri</div>
-        <div>Sat</div>
-        <div>Sun</div>
-      </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="calendar-grid">
+        {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((day) => (
+          <div key={day} className="calendar-day-header">
+            {day}
+          </div>
+        ))}
+
         {Array.from({ length: startOffset }).map((_, i) => (
-          <div key={`empty-${i}`} className="p-2"></div>
+          <div key={`empty-${i}`} />
         ))}
 
         {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -89,12 +133,7 @@ export default function Calendar() {
             <button
               key={day}
               onClick={() => handleDateClick(day)}
-              className={`p-2 rounded-md text-sm font-semibold transition-colors cursor-pointer
-                ${
-                  isSelected
-                    ? "bg-green-500 text-white hover:bg-green-600"
-                    : "bg-gray-50 text-gray-700 hover:bg-gray-200 border border-gray-100"
-                }`}
+              className={`calendar-day ${isSelected ? "selected" : ""}`}
             >
               {day}
             </button>
@@ -104,9 +143,10 @@ export default function Calendar() {
 
       <button
         onClick={saveAvailability}
-        className="w-full mt-6 bg-blue-600 text-white font-semibold py-2 rounded-md hover:bg-blue-700 transition-colors cursor-pointer"
+        className="btn-submit"
+        style={{ marginTop: "1.5rem" }}
       >
-        Beschikbaarheid Opslaan
+        Save Availability
       </button>
     </div>
   );
