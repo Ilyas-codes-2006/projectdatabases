@@ -7,7 +7,7 @@ on:
 
 jobs:
   frontend-tests:
-    name: Frontend Tests
+    name: Frontend
     runs-on: ubuntu-latest
 
     defaults:
@@ -30,7 +30,7 @@ jobs:
         run: npm run test:run
 
   backend-tests:
-    name: Backend Tests (Python/Pytest)
+    name: Backend
     runs-on: ubuntu-latest
 
     defaults:
