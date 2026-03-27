@@ -109,6 +109,43 @@ def join_team(team_id):
         member_id=member.id
     )
     db.session.add(new_member)
+    db.session.add(TeamEvent(team_id=team_id, user_id=user_id, action='joined'))
     db.session.commit()
 
     return {"success": True, "message": "joined_team"}
+
+def leave_team():
+    """
+    Verwijder de huidige gebruiker uit zijn team.
+    """
+    user_id = int(g.current_user['sub'])
+
+    member = db.session.query(Member).filter_by(user_id=user_id).first()
+    if not member:
+        return {"success": False, "error": "not_in_team"}
+
+    team_member = db.session.query(TeamMember).filter_by(member_id=member.id).first()
+    if not team_member:
+        return {"success": False, "error": "not_in_team"}
+
+    team_id = team_member.team_id
+
+    # Notificeer de bestaande teamgenoot indien aanwezig
+    existing = db.session.query(TeamMember).filter(
+        TeamMember.team_id == team_id,
+        TeamMember.member_id != member.id
+    ).first()
+    if existing:
+        teammate_member = db.session.query(Member).filter_by(id=existing.member_id).first()
+        if teammate_member:
+            db.session.add(TeamEvent(
+                team_id=team_id,
+                actor_id=user_id,
+                target_id=teammate_member.user_id,
+                action='left'
+            ))
+
+    db.session.delete(team_member)
+    db.session.commit()
+
+    return {"success": True, "message": "left_team"}

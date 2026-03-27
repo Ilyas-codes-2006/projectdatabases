@@ -148,6 +148,16 @@ class JoinRequest(db.Model):
         UniqueConstraint('user_id', 'club_id', name='uq_join_request_user_club'),
     )
 
+class TeamEvent(db.Model):
+    __tablename__ = 'team_event'
+    id         = db.Column(db.Integer, primary_key=True)
+    team_id    = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
+    actor_id   = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # wie deed de actie
+    target_id  = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # wie krijgt de notificatie
+    action     = db.Column(db.VARCHAR(10), nullable=False)  # 'joined' of 'left'
+    read       = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=func.now())
+
 def apply_match_result(match_id: int):
     """
     Verwerkt het resultaat van een afgeronde match op basis van de individuele ELO van de spelers.
