@@ -8,7 +8,6 @@ from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
     admin_required, change_user_email, change_user_name, change_user_birthday
 from teams import show_teams, create_team, join_team
-from clubs import show_clubs, leave_club, request_join
 from email_validator import validate_email, EmailNotValidError
 from clubs import show_clubs, request_new_club, request_join_club, request_join, review_join_request, leave_club, \
     delete_club, _delete_club_cascade, _auto_delete_if_no_admin
@@ -824,5 +823,70 @@ def create_app(test_config=None):
             })
 
         return jsonify(notifications), 200
+
+    @app.route("/api/availability", methods=["POST"])
+    @token_required
+    def save_availability():
+        user_id = int(g.current_user['sub'])
+        data = request.get_json()
+
+        if not data or 'dates' not in data:
+            return jsonify({"error": "No dates selected."}), 400
+        member = db.session.query(Member).filter_by(user_id=user_id).first()
+        if not member:
+            return jsonify({"error": "You have not joined a club yet."}), 400
+
+        try:
+            requested_dates = set()
+            for date_str in data['dates']:
+                try:
+                    requested_dates.add(date.fromisoformat(date_str))
+                except ValueError:
+                    continue
+
+            existing_records = db.session.query(Availability).filter_by(user_id=user_id).all()
+            existing_dates = {record.date for record in existing_records}
+
+            dates_to_add = requested_dates - existing_dates
+            dates_to_remove = existing_dates - requested_dates
+
+            if dates_to_remove:
+                db.session.query(Availability).filter(
+                    Availability.user_id == user_id,
+                    Availability.date.in_(dates_to_remove)
+                ).delete(synchronize_session=False)
+
+            for d in dates_to_add:
+                new_avail = Availability(
+                    user_id=user_id,
+                    date=d,
+                    is_available=True
+                )
+                db.session.add(new_avail)
+
+            db.session.commit()
+
+            return jsonify({
+                "message": f"Succes! {len(dates_to_add)} dates added, {len(dates_to_remove)} removed."
+            }), 200
+
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": f"Error while saving: {str(e)}"}), 500
+
+    @app.route("/api/availability", methods=["GET"])
+    @token_required
+    def get_availability():
+        user_id = int(g.current_user['sub'])
+
+        member = db.session.query(Member).filter_by(user_id=user_id).first()
+        if not member:
+            return jsonify({"dates": []}), 200
+
+        records = db.session.query(Availability).filter_by(user_id=user_id).all()
+
+        dates = [record.date.isoformat() for record in records]
+
+        return jsonify({"dates": dates}), 200
 
     return app

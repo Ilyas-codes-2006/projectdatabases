@@ -78,7 +78,7 @@ class TeamMember(db.Model):
 
 class Availability(db.Model):
     __tablename__ = 'availability'
-    team_member_id = db.Column(db.Integer, db.ForeignKey('team_member.id'), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
     date = db.Column(db.DATE, nullable=False, primary_key=True)
     is_available = db.Column(db.BOOLEAN, default=False)
 
