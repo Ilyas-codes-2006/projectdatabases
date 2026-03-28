@@ -173,7 +173,7 @@ body {
 /* ─── HERO ─── */
 .hero {
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     min-height: calc(100vh - 64px);
     display: flex;
     flex-direction: column;
@@ -996,10 +996,9 @@ body {
 }
 .hero-dashboard {
     position: absolute;
-    top: 50%;
+    top: 2rem;
     left: 4rem;
     right: 4rem;
-    transform: translateY(-50%);
     display: flex;
     justify-content: space-between;
     align-items: flex-start;

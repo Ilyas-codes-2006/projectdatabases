@@ -1,9 +1,12 @@
+tsx
+
 import { useEffect, useState } from "react";
 
 interface Team {
   id: number;
   name: string;
   elo: number;
+  members: string[];
 }
 
 export default function Ladder() {
@@ -52,7 +55,9 @@ export default function Ladder() {
           {teams.map((team, index) => (
             <div key={team.id} className="ladder-item">
               <span className="ladder-rank">#{index + 1}</span>
-              <span className="ladder-name">{team.name}</span>
+              <span className="ladder-name">
+                  {team.name} — {team.members.length > 0 ? team.members.join(" & ") : "No members"}
+                </span>
               <span className="ladder-elo">{team.elo}</span>
             </div>
           ))}

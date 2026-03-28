@@ -889,4 +889,32 @@ def create_app(test_config=None):
 
         return jsonify({"dates": dates}), 200
 
+    @app.get("/api/ladder")
+    @token_required
+    def get_ladder():
+        teams = db.session.query(Team).all()
+        result = []
+
+        for team in teams:
+            members = (
+                db.session.query(Member, User)
+                .join(TeamMember, TeamMember.member_id == Member.id)
+                .join(User, User.id == Member.user_id)
+                .filter(TeamMember.team_id == team.id)
+                .all()
+            )
+
+            avg_elo = round(sum(m.elo for m, u in members) / len(members)) if members else 0
+            member_names = [f"{u.first_name} {u.last_name}" for m, u in members]
+
+            result.append({
+                "id": team.id,
+                "name": team.name,
+                "elo": avg_elo,
+                "members": member_names,
+            })
+
+        result.sort(key=lambda x: x["elo"], reverse=True)
+        return jsonify(result), 200
+
     return app
