@@ -1,5 +1,3 @@
-tsx
-
 import { useEffect, useState } from "react";
 
 interface Team {
@@ -12,22 +10,18 @@ interface Team {
 export default function Ladder() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const fetchLadder = async () => {
       try {
         const token = localStorage.getItem("token");
-
         const res = await fetch("/api/ladder", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
-
         if (res.ok) {
           const data = await res.json();
-          const sorted = data.sort((a: Team, b: Team) => b.elo - a.elo);
-          setTeams(sorted);
+          setTeams(data.sort((a: Team, b: Team) => b.elo - a.elo));
         } else {
           setTeams([]);
         }
@@ -38,9 +32,10 @@ export default function Ladder() {
         setLoading(false);
       }
     };
-
     fetchLadder();
   }, []);
+
+  const visibleTeams = expanded ? teams : teams.slice(0, 4);
 
   return (
     <div className="ladder-container">
@@ -51,17 +46,28 @@ export default function Ladder() {
       ) : teams.length === 0 ? (
         <p className="ladder-empty">No players!</p>
       ) : (
-        <div className="ladder-list">
-          {teams.map((team, index) => (
-            <div key={team.id} className="ladder-item">
-              <span className="ladder-rank">#{index + 1}</span>
-              <span className="ladder-name">
+        <>
+          <div className="ladder-list">
+            {visibleTeams.map((team, index) => (
+              <div key={team.id} className="ladder-item">
+                <span className="ladder-rank">#{index + 1}</span>
+                <span className="ladder-name">
                   {team.name} — {team.members.length > 0 ? team.members.join(" & ") : "No members"}
                 </span>
-              <span className="ladder-elo">{team.elo}</span>
-            </div>
-          ))}
-        </div>
+                <span className="ladder-elo">{team.elo}</span>
+              </div>
+            ))}
+          </div>
+
+          {teams.length > 4 && (
+            <button
+              className="ladder-toggle"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? "▲" : "▼"}
+            </button>
+          )}
+        </>
       )}
     </div>
   );
