@@ -7,7 +7,7 @@ from datetime import date
 from db import *
 from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
     admin_required, change_user_email, change_user_name, change_user_birthday
-from teams import show_teams, create_team, join_team, leave_team
+from teams import show_teams, create_team, join_team
 from email_validator import validate_email, EmailNotValidError
 from clubs import show_clubs, request_new_club, request_join_club, request_join, review_join_request, leave_club, \
     delete_club, _delete_club_cascade, _auto_delete_if_no_admin
@@ -489,11 +489,6 @@ def create_app(test_config=None):
         result = join_team(team_id)
         return jsonify(result)
 
-    @app.delete("/api/teams/leave")
-    @token_required
-    def leave_team_():
-        result = leave_team()
-        return jsonify(result)
 
     @app.get("/api/profile/club-status")
     @token_required
