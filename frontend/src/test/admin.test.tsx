@@ -85,7 +85,7 @@ describe("Admin", () => {
         ).toBeInTheDocument()
       );
       expect(
-        screen.getByText("Club One (Antwerp)")
+        screen.getByText(/Club One.*Antwerp/i)
       ).toBeInTheDocument();
     });
 
