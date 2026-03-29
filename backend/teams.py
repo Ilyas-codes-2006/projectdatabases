@@ -24,7 +24,7 @@ def show_teams():
     return {"success": True, "teams": teams}
 
 
-def create_team(team_name, user_id):
+def create_team(team_name, user_id, ladder_id):
     """
     Maak een nieuw team aan. De maker wordt automatisch toegevoegd als lid.
     Je mag dit alleen als je nog niet in een team zit.
@@ -33,12 +33,7 @@ def create_team(team_name, user_id):
 
     # Controleer of de gebruiker al in een team zit
     member = db.session.query(Member).filter_by(user_id=user_id).first()
-    if member:
-        in_team = db.session.query(TeamMember).filter_by(member_id=member.id).first()
-        if in_team:
-            return {"success": False, "error": "already_in_team"}
-    else:
-        # Maak Member record aan als die nog niet bestaat
+    if not member:
         club = db.session.query(Club).first()
         if not club:
             return {"success": False, "error": "no_clubs_exist"}
@@ -46,11 +41,18 @@ def create_team(team_name, user_id):
         db.session.add(member)
         db.session.commit()
 
-    # Pak de laatste ladder als default
-    ladder = db.session.query(Ladder).order_by(Ladder.id.desc()).first()
+    ladder = db.session.get(Ladder, ladder_id)
     if not ladder:
-        return {"success": False, "error": "no_ladders_exist"}
+        return {"success": False, "error": "ladder_not_found"}
 
+    in_team_this_ladder = (
+        db.session.query(TeamMember)
+        .join(Team, Team.id == TeamMember.team_id)
+        .filter(TeamMember.member_id == member.id, Team.ladder_id == ladder_id)
+        .first()
+    )
+    if in_team_this_ladder:
+        return {"success": False, "error": "already_in_team_in_this_ladder"}
     # Maak nieuw team
     new_team = Team(
         name=team_name,
