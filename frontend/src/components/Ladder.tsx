@@ -34,8 +34,8 @@ export default function Ladder() {
     };
     fetchLadder();
   }, []);
-
-  const visibleTeams = expanded ? teams : teams.slice(0, 4);
+  //top 5 tonen
+  const visibleTeams = expanded ? teams : teams.slice(0, 5);
 
   return (
     <div className="ladder-container">

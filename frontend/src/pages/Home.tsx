@@ -68,7 +68,6 @@ export default function Home() {
             <div className="hero-ladder">
               <Ladder />
             </div>
-
             <div className="hero-calendar-wrapper">
               <Calendar showMessage={showMessage} />
             </div>

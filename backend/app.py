@@ -904,8 +904,9 @@ def create_app(test_config=None):
                 .all()
             )
 
-            avg_elo = round(sum(m.elo for m, u in members) / len(members)) if members else 0
-            member_names = [f"{u.first_name} {u.last_name}" for m, u in members]
+            #ff een random berekeing om punten te laten zien van beide teammates
+            avg_elo = round(sum(member.elo for member, user in members)/len(members)) if members else 0
+            member_names = [f"{user.first_name} {user.last_name}" for member, user in members]
 
             result.append({
                 "id": team.id,
