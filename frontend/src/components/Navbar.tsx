@@ -59,7 +59,7 @@ export default function Navbar() {
 
   const handleBellClick = () => {
     setDropdownOpen((prev) => {
-      if (!prev) markAsRead();
+      if (prev) markAsRead();
       return !prev;
     });
   };
@@ -69,6 +69,7 @@ export default function Navbar() {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
+        markAsRead();
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
