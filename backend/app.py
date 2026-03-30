@@ -910,7 +910,6 @@ def create_app(test_config=None):
 
         return jsonify({"dates": dates}), 200
 
-<<<<<<< Ladder
     @app.get("/api/ladders")
     @token_required
     def get_ladders():
@@ -1002,6 +1001,3 @@ def create_app(test_config=None):
         return jsonify({"success": True, "message": "joined_ladder"}), 200
 
     return app
-=======
-    return app
->>>>>>> main
