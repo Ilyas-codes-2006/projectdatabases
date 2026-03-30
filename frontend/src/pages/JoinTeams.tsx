@@ -9,6 +9,7 @@ type Team = {
   member_count: number;
   members: string[];
   ladder_name: string;
+  team_size: number;
 };
 
 export default function JoinTeams() {
@@ -78,7 +79,7 @@ export default function JoinTeams() {
             {teams.length === 0 && (
               <p style={{ color: "var(--text-muted)", textAlign: "center" }}>No teams available yet</p>
             )}
-            {teams.map((team) => (
+            {teams.filter(team => team.team_size > 1).map((team) => (
               <div key={team.team_id} className="feature-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <strong>{team.team_name}</strong>
@@ -92,7 +93,7 @@ export default function JoinTeams() {
                     Members: {team.members.length > 0 ? team.members.join(" & ") : "No members"}
                   </p>
                 </div>
-                {team.member_count < 2 ? (
+                {team.member_count < team.team_size ? (
                   <button
                     className="btn-primary"
                     onClick={() => handleJoinTeam(team.team_id)}

@@ -937,7 +937,7 @@ body {
     border-radius: 16px;
     padding: 2.5rem;
     width: 100%;
-    max-width: 420px;
+    max-width: 700px;
     animation: fadeUp 0.4s ease both;
 }
 
@@ -1184,6 +1184,61 @@ body {
     color: var(--green-light);
     text-align: center;
 }
+.teams-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+    padding: 1rem;
+}
+
+.teams-mini-card {
+    background: var(--mid);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    font-size: 0.7rem;
+    transition: 0.2s;
+}
+
+.teams-mini-card:hover {
+    background: var(--card-bg);
+    border-color: var(--green-light);
+}
+
+.teams-mini-card strong {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.teams-mini-card em {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+}
+
+.teams-input-group {
+    display: flex;
+    gap: 0.4rem;
+    width: 100%;
+    margin-bottom: 0.5rem;
+}
+
+.teams-input-group input {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 0.7rem;
+    border-radius: 6px;
+}
+
+.teams-input-group button {
+    padding: 6px 10px;
+    font-size: 0.7rem;
+    border-radius: 6px;
+}
 .hero-dashboard {
     position: absolute;
     top: 2rem;
@@ -1197,6 +1252,6 @@ body {
 }
 
 .hero-ladder {
-    max-width: 420px;
+    max-width: 700px;
     width: 100%;
 }
