@@ -109,6 +109,20 @@ def join_team(team_id):
         member_id=member.id
     )
     db.session.add(new_member)
-    db.session.commit()
+    # notify de bestaande teamgenoot indien aanwezig
+    existing = db.session.query(TeamMember).filter(
+        TeamMember.team_id == team_id,
+        TeamMember.member_id != member.id
+    ).first()
+    if existing:
+        teammate = db.session.query(Member).filter_by(id=existing.member_id).first()
+        if teammate:
+            db.session.add(TeamEvent(
+                team_id=team_id,
+                actor_id=user_id,
+                target_id=teammate.user_id,
+                action='joined'
+            ))
 
+    db.session.commit()
     return {"success": True, "message": "joined_team"}
