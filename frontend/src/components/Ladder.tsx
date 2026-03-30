@@ -177,9 +177,9 @@ export default function Ladder() {
                       <div key={team.id} className="ladder-item">
                         <span className="ladder-rank">#{index + 1}</span>
                         <span className="ladder-name">
-                          {team.members.length > 1
-                            ? `${team.name} — ${team.members.join(" & ")}`
-                            : team.name}
+                          {ladder.team_size === 1
+                          ? team.members[0]
+                          : `${team.name} — ${team.members.join(" & ")}`}
                         </span>
                         <span className="ladder-elo">{team.elo}</span>
                       </div>
@@ -222,10 +222,10 @@ export default function Ladder() {
                   .filter((t) => t.members.length < popup.team_size)
                   .map((team) => (
                     <div key={team.id} className="ladder-popup-team">
-                      <span>
-                        {team.members.length > 1
-                          ? `${team.name} (${team.members.join(" & ")})`
-                          : team.name}
+                      <span className="ladder-name">
+                          {popup.team_size === 1
+                          ? team.members[0]
+                          : `${team.name} — ${team.members.join(" & ")}`}
                       </span>
                       <button
                         className="ladder-popup-btn-small"

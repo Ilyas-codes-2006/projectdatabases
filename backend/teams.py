@@ -26,12 +26,15 @@ def show_teams():
             .all()
         )
         member_names = [f"{user.first_name} {user.last_name}" for member, user in members_q]
+        sport = db.session.get(Sport, ladder.sport_id)
         teams.append({
             "team_id": t.id,
             "team_name": t.name,
             "member_count": t.member_count,
             "members": member_names,
             "ladder_name": ladder_name,
+            "ladder_name": ladder.name if ladder else "Unknown",
+            "team_size": sport.team_size if sport else 1
         })
 
     return {"success": True, "teams": teams}
@@ -82,28 +85,19 @@ def create_team(team_name, user_id, ladder_id):
 
 
 def join_team(team_id):
-    """
-    Voeg de huidige gebruiker toe aan een team (max 2 leden per team).
-    Je mag dit alleen als je nog niet in een team zit.
-    """
     user_id = int(g.current_user['sub'])
 
-    #Moet in club!
+    # Moet in club
     member = db.session.query(Member).filter_by(user_id=user_id).first()
     if not member or not member.club_id:
         return {"success": False, "error": "not_in_club"}
-
-    # Controleer of de gebruiker al in een team zit
-    #member_in_team = db.session.query(TeamMember).filter_by(member_id=member.id).first()
-    #if member_in_team:
-    #   return {"success": False, "error": "already_in_team"}
 
     # Controleer of het team bestaat
     team = db.session.query(Team).filter_by(id=team_id).first()
     if not team:
         return {"success": False, "error": "team_not_found"}
 
-    #check in de ladder die je joint
+    # Check of gebruiker al in ladder zit
     in_team_this_ladder = (
         db.session.query(TeamMember)
         .join(Team, Team.id == TeamMember.team_id)
@@ -113,7 +107,7 @@ def join_team(team_id):
     if in_team_this_ladder:
         return {"success": False, "error": "already_in_team_in_this_ladder"}
 
-    # Controleer of het team niet vol zit
+    # Check of team niet vol zit
     members_count = db.session.query(TeamMember).filter_by(team_id=team_id).count()
     if members_count >= 2:
         return {"success": False, "error": "team_full"}
