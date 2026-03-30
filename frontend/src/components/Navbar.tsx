@@ -3,10 +3,8 @@ import { useAuth } from "../context/AuthContext";
 import { useState, useEffect, useRef} from "react";
 
 type Notification = {
-    user_id: number;
-    user_name: string;
-    clud_id: number;
-    club_name: string;
+    type: "join_request" | "team_event";
+    message: string;
 };
 
 export default function Navbar() {
@@ -46,6 +44,25 @@ export default function Navbar() {
   const interval = setInterval(fetchNotifications, 10000);
   return () => clearInterval(interval);
   }, [loggedInUser]);
+
+  const markAsRead = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      await fetch("/api/notifications/read", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setNotifications([]);
+    } catch { /* silent */ }
+  };
+
+  const handleBellClick = () => {
+    setDropdownOpen((prev) => {
+      if (!prev) markAsRead();
+      return !prev;
+    });
+  };
 
   // Sluit dropdown bij klikken buiten
   useEffect(() => {
@@ -108,7 +125,7 @@ export default function Navbar() {
             {/* ── NOTIFICATIE BELLETJE ── */}
             <div ref={dropdownRef} style={{ position: "relative" }}>
               <button
-                onClick={() => setDropdownOpen((prev) => !prev)}
+                onClick={() => handleBellClick()}
                 style={{
                   background: "none",
                   border: "none",
@@ -179,9 +196,7 @@ export default function Navbar() {
                         fontSize: "0.9rem",
                         color: "#f4f9f5",
                       }}>
-                        <strong>{n.user_name}</strong>
-                        <span style={{ color: "#8fb59a" }}> wil lid worden van </span>
-                        <strong>{n.club_name}</strong>
+                        {n.message}
                       </div>
                     ))
                   )}
