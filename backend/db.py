@@ -28,8 +28,8 @@ class Club(db.Model):
 class Member(db.Model):
     __tablename__ = 'member'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    club_id = db.Column(db.Integer, db.ForeignKey('club.id', ondelete='CASCADE'), nullable=False)
     joined_at = db.Column(db.DATE, nullable=False, default=func.current_date())
     is_admin = db.Column(db.BOOLEAN, default=False)
     elo = db.Column(db.INTEGER, default=0)
@@ -70,7 +70,7 @@ class TeamMember(db.Model):
     __tablename__ = 'team_member'
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
-    member_id = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
+    member_id = db.Column(db.Integer, db.ForeignKey('member.id', ondelete='CASCADE'), nullable=False)
 
     __table_args__ = (
         UniqueConstraint('team_id', 'member_id', name='uq_team_member'),
@@ -78,7 +78,7 @@ class TeamMember(db.Model):
 
 class Availability(db.Model):
     __tablename__ = 'availability'
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
     date = db.Column(db.DATE, nullable=False, primary_key=True)
     is_available = db.Column(db.BOOLEAN, default=False)
 
@@ -97,7 +97,7 @@ class Match(db.Model):
 
 class Score(db.Model):
     __tablename__ = 'score'
-    match_id = db.Column(db.Integer, db.ForeignKey('match.id'), primary_key=True)
+    match_id = db.Column(db.Integer, db.ForeignKey('match.id', ondelete='CASCADE'), primary_key=True)
     set = db.Column(db.Integer, primary_key=True)
     home_score = db.Column(db.Integer, nullable=False)
     away_score = db.Column(db.Integer, nullable=False)
@@ -109,23 +109,23 @@ class Score(db.Model):
 class PasswordResetToken(db.Model):
     __tablename__ = 'password_reset_token'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     token = db.Column(db.TEXT, nullable=False, unique=True)
-    expires_at = db.Column(db.DateTime, nullable=False) # Typfout gecorrigeerd
+    expires_at = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DATE, nullable=False, default=func.current_date())
     used = db.Column(db.BOOLEAN, default=False)
 
 class Request(db.Model):
     __tablename__ = 'request'
-    club_id = db.Column(db.Integer, db.ForeignKey('club.id'), primary_key=True) # ForeignKey toegevoegd
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True) # ForeignKey toegevoegd
+    club_id = db.Column(db.Integer, db.ForeignKey('club.id', ondelete='CASCADE'), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
     expires_at = db.Column(db.DateTime, nullable=False)
-    accepted = db.Column(db.BOOLEAN, default=False) # Naam gelijkgetrokken met ER-diagram
+    accepted = db.Column(db.BOOLEAN, default=False)
 
 class ClubRequest(db.Model):
     __tablename__ = 'club_request'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     club_name = db.Column(db.VARCHAR(255), nullable=False)
     city = db.Column(db.VARCHAR(255), nullable=False)
     motivation = db.Column(db.TEXT)
@@ -138,8 +138,8 @@ class JoinRequest(db.Model):
     """A user requesting to join an existing club."""
     __tablename__ = 'join_request'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    club_id = db.Column(db.Integer, db.ForeignKey('club.id', ondelete='CASCADE'), nullable=False)
     motivation = db.Column(db.TEXT)
     status = db.Column(db.VARCHAR(50), nullable=False, default='pending')  # pending / approved / rejected
     created_at = db.Column(db.DATE, nullable=False, default=func.current_date())
@@ -147,6 +147,16 @@ class JoinRequest(db.Model):
     __table_args__ = (
         UniqueConstraint('user_id', 'club_id', name='uq_join_request_user_club'),
     )
+
+class TeamEvent(db.Model):
+    __tablename__ = 'team_event'
+    id         = db.Column(db.Integer, primary_key=True)
+    team_id    = db.Column(db.Integer, db.ForeignKey('team.id', ondelete='CASCADE'), nullable=False)
+    actor_id   = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    target_id  = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    action     = db.Column(db.VARCHAR(10), nullable=False)
+    read       = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=func.now())
 
 def apply_match_result(match_id: int):
     """

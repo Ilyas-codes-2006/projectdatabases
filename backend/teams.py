@@ -112,14 +112,26 @@ def join_team(team_id):
     if members_count >= 2:
         return {"success": False, "error": "team_full"}
 
-    # Voeg toe met try/except
-    try:
-        new_member = TeamMember(team_id=team_id, member_id=member.id)
-        db.session.add(new_member)
-        db.session.commit()
-        return {"success": True, "message": "joined_team"}
-    except Exception as e:
-        db.session.rollback()
-        # log evt. de error voor debugging
-        print("Error joining team:", e)
-        return {"success": False, "error": str(e)}
+    # Voeg toe
+    new_member = TeamMember(
+        team_id=team_id,
+        member_id=member.id
+    )
+    db.session.add(new_member)
+    # notify de bestaande teamgenoot indien aanwezig
+    existing = db.session.query(TeamMember).filter(
+        TeamMember.team_id == team_id,
+        TeamMember.member_id != member.id
+    ).first()
+    if existing:
+        teammate = db.session.query(Member).filter_by(id=existing.member_id).first()
+        if teammate:
+            db.session.add(TeamEvent(
+                team_id=team_id,
+                actor_id=user_id,
+                target_id=teammate.user_id,
+                action='joined'
+            ))
+
+    db.session.commit()
+    return {"success": True, "message": "joined_team"}
