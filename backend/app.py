@@ -911,7 +911,7 @@ def create_app(test_config=None):
                     .filter(TeamMember.team_id == team.id)
                     .all()
                 )
-                avg_elo = round(sum(m.elo for m, u in members) / len(members)) if members else 0
+                avg_elo = round(sum((m.elo or 0) for m, u in members) / len(members)) if members else 0
                 member_names = [f"{u.first_name} {u.last_name}" for m, u in members]
 
                 teams_data.append({
@@ -941,8 +941,8 @@ def create_app(test_config=None):
 
         # Moet in een club zitten
         member = db.session.query(Member).filter_by(user_id=user_id).first()
-        if not member:
-            return jsonify({"error": "not_in_club"}), 400
+        if not member or not member.club_id:
+            return {"success": False, "error": "not_in_club"}, 400
 
         # Ladder moet bestaan
         ladder = db.session.get(Ladder, ladder_id)

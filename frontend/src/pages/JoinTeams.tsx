@@ -7,6 +7,8 @@ type Team = {
   team_id: number;
   team_name: string;
   member_count: number;
+  members: string[];
+  ladder_name: string;
 };
 
 export default function JoinTeams() {
@@ -50,9 +52,7 @@ export default function JoinTeams() {
         else showMessage(data.error || "Failed to join team", "error");
       } else {
         showMessage("You joined the team!", "success");
-        setTeams((prev) =>
-          prev.map((t) => t.team_id === team_id ? { ...t, member_count: t.member_count + 1 } : t)
-        );
+        await fetchTeams();
       }
     } catch {
       showMessage("Could not connect to server", "error");
@@ -66,7 +66,7 @@ export default function JoinTeams() {
       <MessageBanner message={message} onClose={clearMessage} />
       <div className="auth-card auth-card-wide">
         <div className="auth-header">
-          <span className="auth-icon">👥</span>
+          <span className="auth-icon"></span>
           <h2>Available Teams</h2>
           <p>Join an existing team</p>
         </div>
@@ -84,6 +84,12 @@ export default function JoinTeams() {
                   <strong>{team.team_name}</strong>
                   <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "4px" }}>
                     {team.member_count}/2 players — {team.member_count >= 2 ? "Full" : "Open"}
+                  </p>
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: "2px 0" }}>
+                    Ladder: {team.ladder_name || "No ladder"}
+                  </p>
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: "2px 0" }}>
+                    Members: {team.members.length > 0 ? team.members.join(" & ") : "No members"}
                   </p>
                 </div>
                 {team.member_count < 2 ? (

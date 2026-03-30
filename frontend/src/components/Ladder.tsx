@@ -53,25 +53,32 @@ export default function Ladder() {
   };
 
   const handleJoin = async (ladder: LadderData) => {
-    if (ladder.team_size > 1) {
-      setPopup(ladder);
-      setTeamName("");
-      setMessage("");
-    } else {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/ladders/${ladder.id}/join`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setMessage("Joined ladder!");
-        fetchLadders();
+
+      if (ladder.team_size > 1) {
+        setPopup(ladder);
+        setTeamName("");
+        setMessage("");
       } else {
-        setMessage(data.error || "Error joining ladder");
+        try {
+          const res = await fetch(`/api/ladders/${ladder.id}/join`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
+
+          if (res.ok) {
+            setMessage("Joined ladder!");
+            fetchLadders(); // refresh the ladder data
+          } else {
+            setMessage(data.error || "Error joining ladder");
+          }
+        } catch (error) {
+          console.error("Error joining ladder:", error);
+          setMessage("Error joining ladder");
+        }
       }
-    }
-  };
+    };
 
   const handleCreateTeam = async () => {
     if (!popup || !teamName.trim()) return;
@@ -90,7 +97,7 @@ export default function Ladder() {
       setPopup(null);
       setMessage("Team created and joined ladder!");
       await fetchLadders();
-      // Auto-expand de ladder zodat de user het team ziet
+      // Expand de ladder zodat de user het team ziet
       setExpanded((prev) =>
         prev.includes(ladderId) ? prev : [...prev, ladderId]
       );
@@ -100,26 +107,34 @@ export default function Ladder() {
   };
 
   const handleJoinExistingTeam = async (team_id: number) => {
-    const token = localStorage.getItem("token");
-    const ladderId = popup?.id;
-    const res = await fetch(`/api/teams/${team_id}/join`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setPopup(null);
-      setMessage("Joined team!");
-      await fetchLadders();
-      if (ladderId) {
+      if (!popup) return;
+      const token = localStorage.getItem("token");
+      const ladderId = popup.id;
+
+      const res = await fetch(`/api/teams/${team_id}/join`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setPopup(null);
+        setMessage("Joined team!");
+        await fetchLadders();
+
+        // Expand de ladder zodat de gebruiker het team ziet
         setExpanded((prev) =>
           prev.includes(ladderId) ? prev : [...prev, ladderId]
         );
+      } else {
+        // Toon een nette foutmelding
+        setMessage(data.error || "Error joining team");
       }
-    } else {
-      setMessage(data.error || "Error joining team");
-    }
-  };
+    };
 
   return (
     <div className="ladder-container">
@@ -162,10 +177,9 @@ export default function Ladder() {
                       <div key={team.id} className="ladder-item">
                         <span className="ladder-rank">#{index + 1}</span>
                         <span className="ladder-name">
-                          {team.name} —{" "}
-                          {team.members.length > 0
-                            ? team.members.join(" & ")
-                            : "No members"}
+                          {team.members.length > 1
+                            ? `${team.name} — ${team.members.join(" & ")}`
+                            : team.name}
                         </span>
                         <span className="ladder-elo">{team.elo}</span>
                       </div>
@@ -209,8 +223,9 @@ export default function Ladder() {
                   .map((team) => (
                     <div key={team.id} className="ladder-popup-team">
                       <span>
-                        {team.name} (
-                        {team.members.join(" & ") || "No members"})
+                        {team.members.length > 1
+                          ? `${team.name} (${team.members.join(" & ")})`
+                          : team.name}
                       </span>
                       <button
                         className="ladder-popup-btn-small"
