@@ -477,7 +477,7 @@ class TestTeamsAPI:
             db.session.commit()
             ladder_id = ladder.id
             club_id = club.id
-            user = User(email="smashers.user@gmail.com",password_hash="fakehash")
+            user = User(email="smashers.user@gmail.com", club_id=club.id)
             user.club_id = club.id
             db.session.add(user)
             db.session.commit()
@@ -503,7 +503,7 @@ class TestTeamsAPI:
             club = make_club()
             db.session.commit()
             club_id = club.id
-            user = User(email="join.none@gmail.com", password_hash="fakehash", club_id=club.id)
+            user = User(email="join.none@gmail.com", club_id=club.id)
             db.session.add(user)
             db.session.commit()
 
@@ -522,10 +522,10 @@ class TestTeamsAPI:
             db.session.commit()
             ladder_id = ladder.id
             club_id = club.id
-            creator = User(email="creator.user@gmail.com",password_hash="fakehash", club_id=club.id)
+            creator = User(email="creator.user@gmail.com", club_id=club.id)
             db.session.add(creator)
             creator.club_id = club.id
-            joiner = User(email="joiner.user@gmail.com",password_hash="fakehash", club_id=club.id)
+            joiner = User(email="joiner.user@gmail.com", club_id=club.id)
             joiner.club_id = club.id
             db.session.add(joiner)
             db.session.commit()
