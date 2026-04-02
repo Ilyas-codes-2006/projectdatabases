@@ -476,11 +476,13 @@ class TestTeamsAPI:
             ladder = make_ladder(sport.id,club.id)
             ladder_id = ladder.id
             club_id = club.id
+            user = User.query.filter_by(email="smashers.user@gmail.com").first()
+            user.club_id = club.id
             db.session.commit()
 
         email = "smashers.user@gmail.com"
         headers = api_register_and_login(client,email)
-        # TODO make user member of a club
+        ### #
 
         res = client.post("/api/teams", json={"team_name": "Smashers","ladder_id":ladder_id}, headers=headers)
         assert res.get_json()["success"] is True
@@ -498,11 +500,13 @@ class TestTeamsAPI:
         with app.app_context():
             club = make_club()
             club_id = club.id
+            user = User.query.filter_by(email="join.none@gmail.com").first()
+            user.club_id = club.id
             db.session.commit()
 
         email = "join.none@gmail.com"
         headers = api_register_and_login(client, email)
-        # TODO make user member of a club
+        # #
         res = client.post("/api/teams/99999/join", headers=headers)
         assert res.get_json()["success"] is False
         assert res.get_json()["error"] == "team_not_found"
@@ -514,13 +518,16 @@ class TestTeamsAPI:
             ladder = make_ladder(sport.id, club.id)
             ladder_id = ladder.id
             club_id = club.id
+            creator = User.query.filter_by(email="creator.user@gmail.com").first()
+            creator.club_id = club.id
+            joiner = User.query.filter_by(email="joiner.user@gmail.com").first()
+            joiner.club_id = club.id
             db.session.commit()
 
         creator_email = "creator.user@gmail.com"
         h1 = api_register_and_login(client, creator_email)
 
         api_register_and_login(client, "joiner.user@gmail.com")
-        # TODO make user member of a club
 
         client.post("/api/teams", json={"team_name": "Team1", "ladder_id": ladder_id}, headers=h1)
 
