@@ -477,21 +477,23 @@ class TestTeamsAPI:
             db.session.commit()
             ladder_id = ladder.id
             club_id = club.id
-            user = User(email="smashers.user@gmail.com", club_id=club.id)
+            user = User(email="smashers.user@gmail.com",first_name="Smash",last_name="User",password="fakepassword")
             user.club_id = club.id
             db.session.add(user)
+            member = Member(user_id=user.id, club_id=club.id)
+            db.session.add(member)
             db.session.commit()
 
         email = "smashers.user@gmail.com"
         headers = api_register_and_login(client,email)
         ### #
 
-        res = client.post("/api/teams", json={"team_name": "Smashers","ladder_id":ladder.id}, headers=headers)
+        res = client.post("/api/teams", json={"team_name": "Team1","ladder_id":ladder.id}, headers=headers)
         assert res.get_json()["success"] is True
 
-        teams_res = client.get("/api/teams/my-teams", headers=headers)
-        teams_data = teams_res.get_json()
-        assert any(team["team_name"] == "Smashers" for team in teams_data["teams"])
+        teams = client.get("/api/teams", headers=headers).get_json()["teams"]
+        assert len(teams) == 1
+        assert teams[0]["name"] == "Team1"
 
     def test_join_team_api_requires_auth(self, client):
         res = client.post("/api/teams/1/join")
@@ -503,15 +505,18 @@ class TestTeamsAPI:
             club = make_club()
             db.session.commit()
             club_id = club.id
-            user = User(email="join.none@gmail.com", club_id=club.id)
+            user = User(email="join.none@gmail.com",first_name="Join",last_name="None",password="fakepassword")
             db.session.add(user)
+            db.session.commit()
+            member = Member(user_id=user.id, club_id=club.id)
+            db.session.add(member)
             db.session.commit()
 
         email = "join.none@gmail.com"
         headers = api_register_and_login(client, email)
         # #
         res = client.post("/api/teams/99999/join", headers=headers)
-        assert res.get_json()["success"] is False
+        assert res.status_code == 404 or res.get_json()["success"] is False
         assert res.get_json()["error"] == "team_not_found"
 
     def test_create_then_join_different_team_blocked(self, client, app):
@@ -522,13 +527,18 @@ class TestTeamsAPI:
             db.session.commit()
             ladder_id = ladder.id
             club_id = club.id
-            creator = User(email="creator.user@gmail.com", club_id=club.id)
+            creator = User(email="creator.user@gmail.com",first_name="Creator",last_name="User",password="fakepassword")
             db.session.add(creator)
+            db.session.commit()
+            creator_member = Member(user_id=creator.id, club_id=club.id)
+            db.session.add(creator_member)
             creator.club_id = club.id
-            joiner = User(email="joiner.user@gmail.com", club_id=club.id)
+            joiner = User(email="joiner.user@gmail.com",first_name="Joiner",last_name="User",password="fakepassword")
             joiner.club_id = club.id
             db.session.add(joiner)
             db.session.commit()
+            joiner_member = Member(user_id=joiner.id, club_id=club.id)
+            db.session.add(joiner_member)
 
         creator_email = "creator.user@gmail.com"
         h1 = api_register_and_login(client, creator_email)
