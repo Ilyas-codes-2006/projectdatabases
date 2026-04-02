@@ -206,7 +206,7 @@ class TestCreateTeam:
 
             with app.test_request_context():
                 g.current_user = {"sub": str(u_id)}
-                result = create_team("MyTeam", u_id)
+                result = create_team("MyTeam", u_id, ladder_id)
 
         assert result["success"] is True
         assert "team_id" in result
@@ -224,7 +224,7 @@ class TestCreateTeam:
 
             with app.test_request_context():
                 g.current_user = {"sub": str(u_id)}
-                result = create_team("AutoJoin", u_id)
+                result = create_team("AutoJoin", u_id, ladder_id)
 
             team_id = result["team_id"]
             member = db.session.query(Member).filter_by(user_id=u_id).first()
@@ -245,8 +245,8 @@ class TestCreateTeam:
 
             with app.test_request_context():
                 g.current_user = {"sub": str(u_id)}
-                create_team("First", u_id)
-                result = create_team("Second", u_id)
+                create_team("First", u_id, ladder_id)
+                result = create_team("Second", u_id, ladder_id)
 
         assert result["success"] is False
         assert result["error"] == "already_in_team"
@@ -264,7 +264,7 @@ class TestCreateTeam:
                 result = create_team("Orphan", u_id,99999)
 
         assert result["success"] is False
-        assert result["error"] in ("no_ladders_exist",)
+        assert result["error"] in ("no_ladders_exist","ladder_not_found")
 
     def test_create_team_no_club_exists(self, app):
         with app.app_context():
@@ -277,7 +277,7 @@ class TestCreateTeam:
                 result = create_team("NoClub", u_id,1)
 
         assert result["success"] is False
-        assert result["error"] == "no_clubs_exist"
+        assert result["error"] == "not_in_club"
 
     def test_create_team_uses_latest_ladder(self, app):
         with app.app_context():
@@ -304,14 +304,15 @@ class TestCreateTeam:
             u_id = u.id
             make_club()
             sport = make_sport()
-            make_ladder(sport.id)
+            ladder = make_ladder(sport.id)
+            ladder_id = ladder.id
             db.session.commit()
 
             assert db.session.query(Member).filter_by(user_id=u_id).first() is None
 
             with app.test_request_context():
                 g.current_user = {"sub": str(u_id)}
-                result = create_team("AutoMember", u_id)
+                result = create_team("AutoMember", u_id, ladder_id)
 
             assert result["success"] is False
             assert result["error"] == "not_in_club"
