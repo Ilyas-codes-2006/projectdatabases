@@ -199,7 +199,9 @@ class TestCreateTeam:
             u_id = u.id
             club = make_club()
             sport = make_sport()
-            make_ladder(sport.id, club.id)
+            ladder = make_ladder(sport.id, club.id)
+            ladder_id = ladder.id
+            make_member(u_id, club.id)
             db.session.commit()
 
             with app.test_request_context():
@@ -215,7 +217,9 @@ class TestCreateTeam:
             u_id = u.id
             club = make_club()
             sport = make_sport()
-            make_ladder(sport.id, club.id)
+            ladder = make_ladder(sport.id, club.id)
+            ladder_id = ladder.id
+            make_member(u_id, club.id)
             db.session.commit()
 
             with app.test_request_context():
@@ -234,7 +238,9 @@ class TestCreateTeam:
             u_id = u.id
             club = make_club()
             sport = make_sport()
-            make_ladder(sport.id, club.id)
+            ladder = make_ladder(sport.id, club.id)
+            ladder_id = ladder.id
+            make_member(u_id, club.id)
             db.session.commit()
 
             with app.test_request_context():
@@ -249,12 +255,13 @@ class TestCreateTeam:
         with app.app_context():
             u = make_user("ct.noladder@gmail.com")
             u_id = u.id
-            make_club()
+            club = make_club()
+            make_member(u_id, club.id)
             db.session.commit()
 
             with app.test_request_context():
                 g.current_user = {"sub": str(u_id)}
-                result = create_team("Orphan", u_id)
+                result = create_team("Orphan", u_id,99999)
 
         assert result["success"] is False
         assert result["error"] in ("no_ladders_exist",)
@@ -267,7 +274,7 @@ class TestCreateTeam:
 
             with app.test_request_context():
                 g.current_user = {"sub": str(u_id)}
-                result = create_team("NoClub", u_id)
+                result = create_team("NoClub", u_id,1)
 
         assert result["success"] is False
         assert result["error"] == "no_clubs_exist"
@@ -281,11 +288,12 @@ class TestCreateTeam:
             make_ladder(sport.id, club.id, "Old Ladder")
             l2 = make_ladder(sport.id, club.id, "New Ladder")
             l2_id = l2.id
+            make_member(u_id, club.id)
             db.session.commit()
 
             with app.test_request_context():
                 g.current_user = {"sub": str(u_id)}
-                result = create_team("LatestLadder", u_id)
+                result = create_team("LatestLadder", u_id,l2_id)
 
             team = db.session.get(Team, result["team_id"])
             assert team.ladder_id == l2_id
@@ -305,8 +313,8 @@ class TestCreateTeam:
                 g.current_user = {"sub": str(u_id)}
                 result = create_team("AutoMember", u_id)
 
-            assert result["success"] is True
-            assert db.session.query(Member).filter_by(user_id=u_id).first() is not None
+            assert result["success"] is False
+            assert result["error"] == "not_in_club"
 
 
 # ===========================================================================
@@ -323,6 +331,7 @@ class TestJoinTeam:
             ladder = make_ladder(sport.id, club.id)
             team = make_team(ladder.id)
             team_id = team.id
+            make_member(u_id, club.id)
             db.session.commit()
 
             with app.test_request_context():
@@ -351,7 +360,7 @@ class TestJoinTeam:
                 result = join_team(t2_id)
 
         assert result["success"] is False
-        assert result["error"] == "already_in_team"
+        assert result["error"] == "already_in_team_in_this_ladder"
 
     def test_join_team_full(self, app):
         with app.app_context():
@@ -366,6 +375,7 @@ class TestJoinTeam:
             team_id = team.id
             m1 = make_member(u1.id, club.id)
             m2 = make_member(u2.id, club.id)
+            make_member(u3_id, club.id)
             make_team_member(team_id, m1.id)
             make_team_member(team_id, m2.id)
             db.session.commit()
@@ -381,7 +391,8 @@ class TestJoinTeam:
         with app.app_context():
             u = make_user("jt.notfound@gmail.com")
             u_id = u.id
-            make_club()
+            club = make_club()
+            make_member(u_id, club.id)
             db.session.commit()
 
             with app.test_request_context():
@@ -402,6 +413,7 @@ class TestJoinTeam:
             team = make_team(ladder.id)
             team_id = team.id
             m1 = make_member(u1.id, club.id)
+            make_member(u2_id, club.id)
             make_team_member(team_id, m1.id)
             db.session.commit()
 
@@ -420,6 +432,7 @@ class TestJoinTeam:
             ladder = make_ladder(sport.id, club.id)
             team = make_team(ladder.id)
             team_id = team.id
+            make_member(u_id, club.id)
             db.session.commit()
 
             assert db.session.query(Member).filter_by(user_id=u_id).first() is None
@@ -440,6 +453,7 @@ class TestJoinTeam:
             ladder = make_ladder(sport.id, club.id)
             team = make_team(ladder.id)
             team_id = team.id
+            make_member(u_id, club.id)
             db.session.commit()
 
             with app.test_request_context():
@@ -477,12 +491,16 @@ class TestTeamsAPI:
 
     def test_post_teams_creates_and_shows_in_list(self, client, app):
         with app.app_context():
-            make_club()
+            club = make_club()
             sport = make_sport()
-            make_ladder(sport.id)
+            ladder = make_ladder(sport.id,club.id)
+            ladder_id = ladder.id
+            club_id = club.id
             db.session.commit()
-        headers = api_register_and_login(client)
-        res = client.post("/api/teams", json={"team_name": "Smashers"}, headers=headers)
+
+        email = "smashers.user@gmail.com"
+        headers = api_register_and_login(client,email)
+        res = client.post("/api/teams", json={"team_name": "Smashers","ladder_id":ladder_id}, headers=headers)
         assert res.get_json()["success"] is True
 
         list_res = client.get("/api/teams", headers=headers)
@@ -496,32 +514,38 @@ class TestTeamsAPI:
     def test_join_team_api_nonexistent_team(self, client, app):
         """A club must exist so join_team reaches the team_not_found check."""
         with app.app_context():
-            make_club()
+            club = make_club()
+            club_id = club.id
             db.session.commit()
-        headers = api_register_and_login(client, "join.none@gmail.com")
+
+        email = "join.none@gmail.com"
+        headers = api_register_and_login(client, email)
         res = client.post("/api/teams/99999/join", headers=headers)
         assert res.get_json()["success"] is False
         assert res.get_json()["error"] == "team_not_found"
 
     def test_create_then_join_different_team_blocked(self, client, app):
-        """User who created a team cannot join another team."""
         with app.app_context():
-            make_club()
+            club = make_club()
             sport = make_sport()
-            make_ladder(sport.id)
+            ladder = make_ladder(sport.id, club.id)
+            ladder_id = ladder.id
+            club_id = club.id
             db.session.commit()
 
-        h1 = api_register_and_login(client, "creator.user@gmail.com")
+        creator_email = "creator.user@gmail.com"
+        h1 = api_register_and_login(client, creator_email)
+
         api_register_and_login(client, "joiner.user@gmail.com")
 
-        client.post("/api/teams", json={"team_name": "Team1"}, headers=h1)
+        client.post("/api/teams", json={"team_name": "Team1", "ladder_id": ladder_id}, headers=h1)
 
         teams = client.get("/api/teams", headers=h1).get_json()["teams"]
         team_id = teams[0]["team_id"]
 
         res = client.post(f"/api/teams/{team_id}/join", headers=h1)
         assert res.get_json()["success"] is False
-        assert res.get_json()["error"] == "already_in_team"
+        assert res.get_json()["error"] == "already_in_team_in_this_ladder"
 
 
 # ===========================================================================
