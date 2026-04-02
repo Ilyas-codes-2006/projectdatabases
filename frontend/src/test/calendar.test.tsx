@@ -1,6 +1,8 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
-import Calendar from "../components/Calendar"; // Check if this path is correct
+import Calendar from "../components/Calendar";
+
+const mockFetch = vi.fn();
 
 describe("Calendar Component", () => {
   const mockShowMessage = vi.fn();
@@ -8,15 +10,16 @@ describe("Calendar Component", () => {
   beforeEach(() => {
     vi.spyOn(Storage.prototype, "getItem").mockReturnValue("fake-token");
 
-    global.fetch = vi.fn();
+    globalThis.fetch = mockFetch as any;
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    mockFetch.mockReset();
   });
 
   it("renders the calendar and fetches initial availability", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ dates: ["2026-03-15", "2026-03-16"] }),
     });
@@ -28,7 +31,7 @@ describe("Calendar Component", () => {
     ).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(mockFetch).toHaveBeenCalledWith(
         "http://localhost:5000/api/availability",
         expect.objectContaining({
           method: "GET",
@@ -39,14 +42,14 @@ describe("Calendar Component", () => {
   });
 
   it("can select and deselect a date by clicking on it", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ dates: [] }),
     });
 
     render(<Calendar showMessage={mockShowMessage} />);
 
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     const dayButton = screen.getByText("15", { selector: "button" });
 
@@ -58,18 +61,18 @@ describe("Calendar Component", () => {
   });
 
   it("saves the selected availability and shows a success message", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ dates: [] }),
     });
 
     render(<Calendar showMessage={mockShowMessage} />);
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     const dayButton = screen.getByText("10", { selector: "button" });
     fireEvent.click(dayButton);
 
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ message: "Successfully saved!" }),
     });
@@ -80,7 +83,7 @@ describe("Calendar Component", () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
       expect(mockShowMessage).toHaveBeenCalledWith(
         "🎉 Successfully saved!",
         "success",
@@ -89,15 +92,15 @@ describe("Calendar Component", () => {
   });
 
   it("shows an error message if the save API call fails", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ dates: [] }),
     });
 
     render(<Calendar showMessage={mockShowMessage} />);
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: false,
       json: async () => ({ error: "Network error" }),
     });
