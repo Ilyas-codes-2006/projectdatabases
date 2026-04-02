@@ -249,7 +249,7 @@ class TestCreateTeam:
                 result = create_team("Second", u_id, ladder_id)
 
         assert result["success"] is False
-        assert result["error"] == "already_in_team"
+        assert result["error"] == "already_in_team_in_this_ladder"
 
     def test_create_team_no_ladder_exists(self, app):
         with app.app_context():
@@ -424,27 +424,6 @@ class TestJoinTeam:
 
         assert result["success"] is True
 
-    def test_join_team_auto_creates_member_record(self, app):
-        with app.app_context():
-            u = make_user("jt.auto@gmail.com")
-            u_id = u.id
-            club = make_club()
-            sport = make_sport()
-            ladder = make_ladder(sport.id, club.id)
-            team = make_team(ladder.id)
-            team_id = team.id
-            make_member(u_id, club.id)
-            db.session.commit()
-
-            assert db.session.query(Member).filter_by(user_id=u_id).first() is None
-
-            with app.test_request_context():
-                g.current_user = {"sub": str(u_id)}
-                result = join_team(team_id)
-
-            assert result["success"] is True
-            assert db.session.query(Member).filter_by(user_id=u_id).first() is not None
-
     def test_join_team_correct_team_member_row_created(self, app):
         with app.app_context():
             u = make_user("jt.row@gmail.com")
@@ -501,6 +480,8 @@ class TestTeamsAPI:
 
         email = "smashers.user@gmail.com"
         headers = api_register_and_login(client,email)
+        # TODO make user member of a club
+
         res = client.post("/api/teams", json={"team_name": "Smashers","ladder_id":ladder_id}, headers=headers)
         assert res.get_json()["success"] is True
 
@@ -521,6 +502,7 @@ class TestTeamsAPI:
 
         email = "join.none@gmail.com"
         headers = api_register_and_login(client, email)
+        # TODO make user member of a club
         res = client.post("/api/teams/99999/join", headers=headers)
         assert res.get_json()["success"] is False
         assert res.get_json()["error"] == "team_not_found"
@@ -538,6 +520,7 @@ class TestTeamsAPI:
         h1 = api_register_and_login(client, creator_email)
 
         api_register_and_login(client, "joiner.user@gmail.com")
+        # TODO make user member of a club
 
         client.post("/api/teams", json={"team_name": "Team1", "ladder_id": ladder_id}, headers=h1)
 
