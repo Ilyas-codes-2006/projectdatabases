@@ -35,7 +35,14 @@ describe("JoinTeams page", () => {
             Promise.resolve({
               success: true,
               teams: [
-                { team_id: 1, team_name: "Team One", member_count: 1 },
+                {
+                  team_id: 1,
+                  team_name: "Team One",
+                  member_count: 1,
+                  team_size: 2,
+                  members: [],
+                  ladder_name: "Test",
+                },
               ],
             }),
         } as Response);

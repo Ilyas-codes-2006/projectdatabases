@@ -27,19 +27,42 @@ describe("Teams page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.setItem("token", "fake-token");
+
+    vi.stubGlobal("fetch", vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+      if (typeof url === "string") {
+        if (url === "/api/teams/my-teams") {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              success: true,
+              teams: [
+                {
+                  id: "1",
+                  team_name: "My Team",
+                  ladder_name: "Test Ladder",
+                  is_solo: false,
+                },
+              ],
+            }),
+          } as Response);
+        }
+
+        if (url === "/api/teams" && options?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ success: true }),
+          } as Response);
+        }
+      }
+
+      return Promise.resolve({
+        ok: false,
+        json: () => Promise.resolve({ success: false }),
+      } as Response);
+    }));
   });
 
   it("creates a team and shows success message", async () => {
-    vi.stubGlobal("fetch", vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: true,
-          }),
-      } as Response)
-    ));
-
     render(<Teams />);
 
     fireEvent.change(screen.getByPlaceholderText("Team name…"), {
@@ -53,4 +76,3 @@ describe("Teams page", () => {
     );
   });
 });
-

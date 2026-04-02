@@ -19,8 +19,7 @@ export default function JoinTeams() {
   const [loading, setLoading] = useState(false);
   const [teamsLoading, setTeamsLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchTeams = async () => {
+  const fetchTeams = async () => {
       setTeamsLoading(true);
       try {
         const res = await fetch("/api/teams", {
@@ -34,8 +33,9 @@ export default function JoinTeams() {
         setTeamsLoading(false);
       }
     };
+  useEffect(() => {
     fetchTeams();
-  }, []);
+  },  []);
 
   const handleJoinTeam = async (team_id: number) => {
     setLoading(true);
