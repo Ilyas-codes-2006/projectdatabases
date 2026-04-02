@@ -5,6 +5,7 @@ import { useMessage } from "../hooks/useMessage";
 import MessageBanner from "../components/MessageBanner";
 import courtsBg from "../assets/court.jpeg";
 import Calendar from "../components/Calendar";
+import Ladder from "../components/Ladder";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -63,8 +64,13 @@ export default function Home() {
           )}
         </div>
         {loggedInUser && (
-          <div className="hero-calendar-wrapper">
-            <Calendar showMessage={showMessage} />
+          <div className="hero-dashboard">
+            <div className="hero-ladder">
+              <Ladder />
+            </div>
+            <div className="hero-calendar-wrapper">
+              <Calendar showMessage={showMessage} />
+            </div>
           </div>
         )}
         {!loggedInUser && (

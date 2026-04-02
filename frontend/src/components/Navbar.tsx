@@ -105,7 +105,7 @@ export default function Navbar() {
               </button>
             )}
             <button className={`nav-btn ${active("/teams")}`} onClick={() => navigate("/teams")}>
-              My Team
+              My Teams
             </button>
 
             {isClubAdmin ? (
@@ -115,7 +115,7 @@ export default function Navbar() {
                 title={myClubName ?? "My Club"}
                 style={{ position: "relative" }}
               >
-                🏟️ My Club
+                My Club
               </button>
             ) : (
               <button className={`nav-btn ${active("/clubs")}`} onClick={() => navigate("/clubs")}>

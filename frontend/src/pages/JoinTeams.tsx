@@ -7,6 +7,9 @@ type Team = {
   team_id: number;
   team_name: string;
   member_count: number;
+  members: string[];
+  ladder_name: string;
+  team_size: number;
 };
 
 export default function JoinTeams() {
@@ -16,8 +19,7 @@ export default function JoinTeams() {
   const [loading, setLoading] = useState(false);
   const [teamsLoading, setTeamsLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchTeams = async () => {
+  const fetchTeams = async () => {
       setTeamsLoading(true);
       try {
         const res = await fetch("/api/teams", {
@@ -31,8 +33,9 @@ export default function JoinTeams() {
         setTeamsLoading(false);
       }
     };
+  useEffect(() => {
     fetchTeams();
-  }, []);
+  },  []);
 
   const handleJoinTeam = async (team_id: number) => {
     setLoading(true);
@@ -50,9 +53,7 @@ export default function JoinTeams() {
         else showMessage(data.error || "Failed to join team", "error");
       } else {
         showMessage("You joined the team!", "success");
-        setTeams((prev) =>
-          prev.map((t) => t.team_id === team_id ? { ...t, member_count: t.member_count + 1 } : t)
-        );
+        await fetchTeams();
       }
     } catch {
       showMessage("Could not connect to server", "error");
@@ -66,7 +67,7 @@ export default function JoinTeams() {
       <MessageBanner message={message} onClose={clearMessage} />
       <div className="auth-card auth-card-wide">
         <div className="auth-header">
-          <span className="auth-icon">👥</span>
+          <span className="auth-icon"></span>
           <h2>Available Teams</h2>
           <p>Join an existing team</p>
         </div>
@@ -78,15 +79,21 @@ export default function JoinTeams() {
             {teams.length === 0 && (
               <p style={{ color: "var(--text-muted)", textAlign: "center" }}>No teams available yet</p>
             )}
-            {teams.map((team) => (
+            {teams.filter(team => team.team_size > 1).map((team) => (
               <div key={team.team_id} className="feature-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <strong>{team.team_name}</strong>
                   <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "4px" }}>
                     {team.member_count}/2 players — {team.member_count >= 2 ? "Full" : "Open"}
                   </p>
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: "2px 0" }}>
+                    Ladder: {team.ladder_name || "No ladder"}
+                  </p>
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: "2px 0" }}>
+                    Members: {team.members.length > 0 ? team.members.join(" & ") : "No members"}
+                  </p>
                 </div>
-                {team.member_count < 2 ? (
+                {team.member_count < team.team_size ? (
                   <button
                     className="btn-primary"
                     onClick={() => handleJoinTeam(team.team_id)}
