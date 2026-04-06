@@ -22,7 +22,13 @@ export default function Home() {
       showMessage(routeMessage, routeMessageType);
       navigate(location.pathname, { replace: true });
     }
-  }, [routeMessage, routeMessageType, showMessage, navigate, location.pathname]);
+  }, [
+    routeMessage,
+    routeMessageType,
+    showMessage,
+    navigate,
+    location.pathname,
+  ]);
 
   return (
     <>
@@ -45,36 +51,31 @@ export default function Home() {
             fellow players — all in one place for your club.
           </p>
 
-           {!loggedInUser ? (
-             <div className="hero-actions">
-               <button
-                 className="btn-primary"
-                 onClick={() => navigate("/register")}
-               >
-                 Get Started
-               </button>
-               <button
-                 className="btn-secondary"
-                 onClick={() => navigate("/login")}
-               >
-                 Sign In
-               </button>
-             </div>
-           ) : (
-             <div className="hero-actions">
-               <button className="btn-primary">Set your availability</button>
-               <button className="btn-secondary">View Schedule</button>
-             </div>
-           )}
-           <Weather />
-         </div>
+          {!loggedInUser && (
+            <div className="hero-actions">
+              <button
+                className="btn-primary"
+                onClick={() => navigate("/register")}
+              >
+                Get Started
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => navigate("/login")}
+              >
+                Sign In
+              </button>
+            </div>
+          )}
+          <Weather />
+        </div>
         {loggedInUser && (
           <div className="hero-dashboard">
             <div className="hero-ladder">
               <Ladder />
             </div>
             <div className="hero-calendar-wrapper">
-              <Calendar showMessage={showMessage} />
+              <Calendar showMessage={showMessage} readOnly={true} />
             </div>
           </div>
         )}
