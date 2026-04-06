@@ -13,13 +13,16 @@ export default function Home() {
   const location = useLocation();
   const { loggedInUser } = useAuth();
   const { message, clearMessage, showMessage } = useMessage();
+  const routeMessage = location.state?.message as string | undefined;
+  const routeMessageType =
+    (location.state?.type as "error" | "success" | undefined) ?? "success";
 
   useEffect(() => {
-    if (location.state?.message) {
-      showMessage(location.state.message, location.state.type ?? "success");
-      window.history.replaceState({}, "");
+    if (routeMessage) {
+      showMessage(routeMessage, routeMessageType);
+      navigate(location.pathname, { replace: true });
     }
-  }, [location.state, showMessage]);
+  }, [routeMessage, routeMessageType, showMessage, navigate, location.pathname]);
 
   return (
     <>
