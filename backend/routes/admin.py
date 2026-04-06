@@ -1,7 +1,8 @@
 from flask import jsonify, request, g, Blueprint
 from db import *
 from auth import token_required, admin_required
-from clubs import _auto_delete_if_no_admin
+from clubs import _auto_delete_if_no_admin, delete_club
+from app import mail
 
 
 admin_bp = Blueprint('admin', __name__)
@@ -182,20 +183,14 @@ def update_user_team(user_id):
         if count >= 2:
             return jsonify({"error": "Dit team zit al vol (max 2 leden)"}), 400
 
-    # Zorg dat member record bestaat
-    from datetime import date
     member = db.session.query(Member).filter_by(user_id=user_id).first()
     if not member:
         if new_team_id is None:
-            # No member row and no team to assign — nothing to do
             return jsonify({"message": "Team succesvol bijgewerkt"}), 200
-        # Cannot assign a team without a club — admin must assign club first
         return jsonify({"error": "Gebruiker heeft nog geen club. Wijs eerst een club toe."}), 400
 
-    # Verwijder huidig team membership
     db.session.query(TeamMember).filter_by(member_id=member.id).delete()
 
-    # Voeg toe aan nieuw team indien opgegeven
     if new_team_id is not None:
         db.session.add(TeamMember(team_id=new_team_id, member_id=member.id))
 
@@ -205,3 +200,82 @@ def update_user_team(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+@admin_bp.get("/club-requests/<int:request_id>")
+@token_required
+@admin_required
+def get_club_request_detail(request_id):
+    import json as _json
+    r = db.session.get(ClubRequest, request_id)
+    if not r:
+        return jsonify({"error": "not_found"}), 404
+    user = db.session.get(User, r.user_id)
+    try:
+        attachments = _json.loads(r.attachments) if r.attachments else []
+    except Exception:
+        attachments = []
+    return jsonify({
+        "success": True,
+        "id": r.id,
+        "club_name": r.club_name,
+        "city": r.city,
+        "motivation": r.motivation,
+        "status": r.status,
+        "created_at": r.created_at.isoformat(),
+        "requester_name": f"{user.first_name} {user.last_name}" if user else "?",
+        "requester_email": user.email if user else "?",
+        "attachments": attachments,
+    }), 200
+
+@admin_bp.get("/club-requests")
+@token_required
+@admin_required
+def get_club_requests():
+    import json as _json
+    from db import ClubRequest, User
+    requests_q = db.session.query(ClubRequest).order_by(ClubRequest.created_at.desc()).all()
+    result = []
+    for r in requests_q:
+        user = db.session.get(User, r.user_id)
+        try:
+            att_count = len(_json.loads(r.attachments)) if r.attachments else 0
+        except Exception:
+            att_count = 0
+        result.append({
+            "id": r.id,
+            "club_name": r.club_name,
+            "city": r.city,
+            "motivation": r.motivation,
+            "status": r.status,
+            "created_at": r.created_at.isoformat(),
+            "requester_name": f"{user.first_name} {user.last_name}" if user else "?",
+            "requester_email": user.email if user else "?",
+            "attachments_count": att_count,
+        })
+    return jsonify({"success": True, "requests": result}), 200
+
+@admin_bp.post("/club-requests/<int:request_id>/review")
+@token_required
+@admin_required
+def review_club_request(request_id):
+    from clubs import review_club_request as do_review
+    data = request.get_json()
+    action = data.get("action")
+    if action not in ("approve", "reject"):
+        return jsonify({"error": "action must be 'approve' or 'reject'"}), 400
+    result = do_review(request_id, action, mail)
+    if result["success"]:
+        return jsonify(result), 200
+    return jsonify({"error": result.get("error")}), 400
+
+@admin_bp.delete("/clubs/<int:club_id>")
+@token_required
+@admin_required
+def admin_delete_club(club_id):
+    user_id = int(g.current_user['sub'])
+    result = delete_club(club_id, user_id, is_site_admin=True)
+    if result["success"]:
+        return jsonify(result), 200
+    if result.get("error") == "club_not_found":
+        return jsonify(result), 404
+    return jsonify(result), 500
