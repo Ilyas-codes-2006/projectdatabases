@@ -1000,4 +1000,53 @@ def create_app(test_config=None):
 
         return jsonify({"success": True, "message": "joined_ladder"}), 200
 
+    @app.get("/api/teams/my-teams")
+    @token_required
+    def get_my_teams():
+        user_id = int(g.current_user["sub"])
+
+        member = db.session.query(Member).filter_by(user_id=user_id).first()
+        if not member:
+            return jsonify({"success": True, "teams": []}), 200
+
+        team_members = db.session.query(TeamMember).filter_by(member_id=member.id).all()
+        if not team_members:
+            return jsonify({"success": True, "teams": []}), 200
+
+        result = []
+        for tm in team_members:
+            team = db.session.get(Team, tm.team_id)
+            if not team:
+                continue
+
+            ladder = db.session.get(Ladder, team.ladder_id)
+            if not ladder:
+                continue
+
+            sport = db.session.get(Sport, ladder.sport_id)
+            team_size = sport.team_size if sport else 1
+
+            all_members = (
+                db.session.query(Member, User)
+                .join(TeamMember, TeamMember.member_id == Member.id)
+                .join(User, User.id == Member.user_id)
+                .filter(TeamMember.team_id == team.id)
+                .all()
+            )
+            member_names = [f"{user.first_name} {user.last_name}" for member, user in all_members]
+            avg_elo = round(sum((member.elo or 0) for member, user in all_members) / len(all_members)) if all_members else 0
+
+            result.append({
+                "team_id": team.id,
+                "team_name": team.name,
+                "ladder_name": ladder.name,
+                "team_size": team_size,
+                "is_solo": team_size == 1,
+                "member_count": len(all_members),
+                "members": member_names,
+                "elo": avg_elo,
+            })
+
+        return jsonify({"success": True, "teams": result}), 200
+
     return app

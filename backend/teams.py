@@ -32,7 +32,6 @@ def show_teams():
             "team_name": t.name,
             "member_count": t.member_count,
             "members": member_names,
-            "ladder_name": ladder_name,
             "ladder_name": ladder.name if ladder else "Unknown",
             "team_size": sport.team_size if sport else 1
         })
