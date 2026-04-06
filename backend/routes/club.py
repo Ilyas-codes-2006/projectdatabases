@@ -143,3 +143,101 @@ def delete_club_(club_id):
     if result.get("error") == "club_not_found":
         return jsonify(result), 404
     return jsonify(result), 500
+
+@club_bp.post("/<int:club_id>/ladders")
+@token_required
+def create_club_ladder(club_id):
+    """
+    Club admin creates a new ladder for their club.
+    Body: { name, team_size, rules, start_date, end_date }
+    """
+    from datetime import date as _date
+
+    user_id = int(g.current_user["sub"])
+
+    # Must be admin of this specific club
+    admin_member = db.session.query(Member).filter_by(
+        user_id=user_id, club_id=club_id, is_admin=True
+    ).first()
+    if not admin_member:
+        return jsonify({"error": "forbidden"}), 403
+
+    club = db.session.get(Club, club_id)
+    if not club:
+        return jsonify({"error": "club_not_found"}), 404
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    name = (data.get("name") or "").strip()
+    team_size = data.get("team_size")
+    rules = (data.get("rules") or "").strip()
+    start_date_str = data.get("start_date")
+    end_date_str = data.get("end_date")
+
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+    if not team_size or not isinstance(team_size, int) or team_size < 1:
+        return jsonify({"error": "team_size must be a positive integer"}), 400
+    if not start_date_str or not end_date_str:
+        return jsonify({"error": "start_date and end_date are required"}), 400
+
+    try:
+        start_date = _date.fromisoformat(start_date_str)
+        end_date = _date.fromisoformat(end_date_str)
+    except ValueError:
+        return jsonify({"error": "Dates must be YYYY-MM-DD"}), 400
+
+    if end_date < start_date:
+        return jsonify({"error": "end_date must be >= start_date"}), 400
+
+    # Reuse or create a Sport with the requested team_size
+    sport = db.session.query(Sport).filter_by(team_size=team_size).first()
+    if not sport:
+        sport = Sport(
+            name=f"Sport (team size {team_size})",
+            team_size=team_size
+        )
+        db.session.add(sport)
+        db.session.flush()
+
+    ladder = Ladder(
+        sport_id=sport.id,
+        club_id=club_id,
+        name=name,
+        start_date=start_date,
+        end_date=end_date,
+        rules=rules or None,
+    )
+    db.session.add(ladder)
+    try:
+        db.session.commit()
+        return jsonify({"success": True, "ladder_id": ladder.id}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@club_bp.get("/<int:club_id>/ladders")
+@token_required
+def get_club_ladders(club_id):
+    """Return all ladders that belong to a specific club."""
+    club = db.session.get(Club, club_id)
+    if not club:
+        return jsonify({"error": "club_not_found"}), 404
+
+    ladders = db.session.query(Ladder).filter_by(club_id=club_id).all()
+    result = []
+    for l in ladders:
+        sport = db.session.get(Sport, l.sport_id)
+        team_count = db.session.query(Team).filter_by(ladder_id=l.id).count()
+        result.append({
+            "id": l.id,
+            "name": l.name,
+            "start_date": l.start_date.isoformat(),
+            "end_date": l.end_date.isoformat(),
+            "team_size": sport.team_size if sport else 1,
+            "rules": l.rules or "",
+            "team_count": team_count,
+        })
+    return jsonify({"success": True, "ladders": result}), 200
