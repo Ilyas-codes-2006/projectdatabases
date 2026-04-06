@@ -492,16 +492,15 @@ def create_app(test_config=None):
         result = join_team(team_id)
         return jsonify(result)
 
-
     @app.get("/api/profile/club-status")
     @token_required
     def club_status():
         user_id = int(g.current_user['sub'])
         member = db.session.query(Member).filter_by(user_id=user_id).first()
-        if member and member.is_admin and member.club_id:
+        if member and member.club_id:
             club = db.session.get(Club, member.club_id)
             return jsonify({
-                "is_club_admin": True,
+                "is_club_admin": member.is_admin,
                 "club_id": member.club_id,
                 "club_name": club.name if club else None,
             }), 200

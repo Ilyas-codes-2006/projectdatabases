@@ -51,10 +51,10 @@ const emptyForm = {
 
 export default function MyClub() {
   const navigate = useNavigate();
-  const { isClubAdmin, myClubName, myClubId } = useAuth();
+  const { isClubAdmin, myClubName, myClubId, refreshClubStatus } = useAuth();
   const { message, clearMessage, showMessage } = useMessage();
 
-  const [tab, setTab] = useState<"members" | "requests" | "ladders">("members");
+  const [tab, setTab] = useState<"members" | "requests" | "ladders">("ladders");
 
   // Members
   const [members, setMembers] = useState<Member[]>([]);
@@ -77,13 +77,25 @@ export default function MyClub() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Leave club
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [leaveLoading, setLeaveLoading] = useState(false);
+
   useEffect(() => {
-    if (!isClubAdmin) navigate("/clubs");
-  }, [isClubAdmin, navigate]);
+    // Force tab to ladders if the user is not an admin
+    if (!isClubAdmin && (tab === "members" || tab === "requests")) {
+      setTab("ladders");
+    }
+  }, [isClubAdmin, tab]);
+
+  useEffect(() => {
+    // Redirect to /clubs if the user is entirely clubless
+    if (myClubId === null) navigate("/clubs");
+  }, [myClubId, navigate]);
 
   // ── Members ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!myClubId) return;
+    if (!myClubId || !isClubAdmin) return;
     setMembersLoading(true);
     fetch(`/api/clubs/${myClubId}/members`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
@@ -92,11 +104,11 @@ export default function MyClub() {
       .then((data) => { if (data.success) setMembers(data.members); })
       .catch(() => showMessage("Kon leden niet laden", "error"))
       .finally(() => setMembersLoading(false));
-  }, [myClubId]);
+  }, [myClubId, isClubAdmin]);
 
   // ── Join requests ─────────────────────────────────────────────────────────
   const fetchJoinRequests = () => {
-    if (!myClubId) return;
+    if (!myClubId || !isClubAdmin) return;
     setRequestsLoading(true);
     fetch(`/api/clubs/${myClubId}/join-requests`, {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
@@ -108,8 +120,8 @@ export default function MyClub() {
   };
 
   useEffect(() => {
-    if (tab === "requests") fetchJoinRequests();
-  }, [tab, myClubId]);
+    if (tab === "requests" && isClubAdmin) fetchJoinRequests();
+  }, [tab, myClubId, isClubAdmin]);
 
   // ── Ladders ───────────────────────────────────────────────────────────────
   const fetchLadders = () => {
@@ -185,6 +197,7 @@ export default function MyClub() {
       const data = await res.json();
       if (data.success) {
         setShowDeleteConfirm(false);
+        await refreshClubStatus();
         navigate("/clubs");
       } else {
         showMessage(data.error || "Verwijderen mislukt", "error");
@@ -195,6 +208,32 @@ export default function MyClub() {
       setShowDeleteConfirm(false);
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  // ── Leave club ───────────────────────────────────────────────────────────
+  const handleLeaveClub = async () => {
+    if (!myClubId) return;
+    setLeaveLoading(true);
+    try {
+      const res = await fetch(`/api/clubs/${myClubId}/leave`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        showMessage("Je hebt de club verlaten", "success");
+        await refreshClubStatus();
+        navigate("/clubs");
+      } else {
+        showMessage(data.error || "Kon club niet verlaten", "error");
+        setShowLeaveConfirm(false);
+      }
+    } catch {
+      showMessage("Kan geen verbinding maken met de server", "error");
+      setShowLeaveConfirm(false);
+    } finally {
+      setLeaveLoading(false);
     }
   };
 
@@ -272,18 +311,33 @@ export default function MyClub() {
       <div className="admin-container">
         <div className="admin-header">
           <h1>🏟️ {myClubName ?? "My Club"}</h1>
-          <p>Beheer je club en leden</p>
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            style={{
-              marginTop: "0.75rem", padding: "8px 20px", borderRadius: "8px",
-              border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.1)",
-              color: "#f87171", cursor: "pointer", fontFamily: "inherit",
-              fontWeight: 500, fontSize: "0.9rem",
-            }}
-          >
-            🗑️ Club verwijderen
-          </button>
+          <p>{isClubAdmin ? "Beheer je club en leden" : "Bekijk ladders en je club status"}</p>
+
+          {isClubAdmin ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              style={{
+                marginTop: "0.75rem", padding: "8px 20px", borderRadius: "8px",
+                border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.1)",
+                color: "#f87171", cursor: "pointer", fontFamily: "inherit",
+                fontWeight: 500, fontSize: "0.9rem",
+              }}
+            >
+              🗑️ Club verwijderen
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowLeaveConfirm(true)}
+              style={{
+                marginTop: "0.75rem", padding: "8px 20px", borderRadius: "8px",
+                border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.1)",
+                color: "#f87171", cursor: "pointer", fontFamily: "inherit",
+                fontWeight: 500, fontSize: "0.9rem",
+              }}
+            >
+              🚪 Club verlaten
+            </button>
+          )}
         </div>
 
         {/* ── DELETE CONFIRM MODAL ── */}
@@ -341,17 +395,72 @@ export default function MyClub() {
           </div>
         )}
 
+        {/* ── LEAVE CONFIRM MODAL ── */}
+        {showLeaveConfirm && (
+          <div
+            style={{
+              position: "fixed", inset: 0, zIndex: 400,
+              background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)",
+              display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem",
+            }}
+            onClick={() => setShowLeaveConfirm(false)}
+          >
+            <div
+              style={{
+                background: "linear-gradient(160deg, #2d1a1a 0%, #1e1212 100%)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                borderRadius: "16px", width: "100%", maxWidth: "420px",
+                padding: "2rem", boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+                animation: "fadeUp 0.25s ease both",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
+                <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>🚪</div>
+                <h3 style={{ fontSize: "1.2rem", fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "1px", marginBottom: "0.5rem" }}>
+                  Club verlaten?
+                </h3>
+                <p style={{ fontSize: "0.9rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
+                  Je staat op het punt om <strong style={{ color: "var(--text)" }}>{myClubName}</strong> te verlaten.
+                  Je wordt uit alle actieve ladders en teams van deze club gehaald.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: "0.75rem" }}>
+                <button
+                  className="btn-secondary"
+                  style={{ flex: 1, padding: "10px" }}
+                  disabled={leaveLoading}
+                  onClick={() => setShowLeaveConfirm(false)}
+                >
+                  Annuleren
+                </button>
+                <button
+                  style={{
+                    flex: 1, padding: "10px", borderRadius: "8px",
+                    border: "1px solid rgba(239,68,68,0.5)", background: "rgba(239,68,68,0.2)",
+                    color: "#f87171", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: "0.95rem",
+                  }}
+                  disabled={leaveLoading}
+                  onClick={handleLeaveClub}
+                >
+                  {leaveLoading ? "Bezig…" : "✕ Ja, verlaten"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── TAB BAR ── */}
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
-          {tabBtn("members",  `👥 Leden (${members.length})`)}
-          {tabBtn("requests", "📋 Lid-aanvragen", pendingCount)}
+          {isClubAdmin && tabBtn("members",  `👥 Leden (${members.length})`)}
+          {isClubAdmin && tabBtn("requests", "📋 Lid-aanvragen", pendingCount)}
           {tabBtn("ladders",  `🏆 Ladders (${ladders.length})`)}
         </div>
 
         {/* ══════════════════════════════════════════════════════════════════
             TAB: MEMBERS
         ══════════════════════════════════════════════════════════════════ */}
-        {tab === "members" && (
+        {tab === "members" && isClubAdmin && (
           <div className="admin-card">
             <div className="admin-card-header">
               <h2>Leden</h2>
@@ -396,7 +505,7 @@ export default function MyClub() {
         {/* ══════════════════════════════════════════════════════════════════
             TAB: JOIN REQUESTS
         ══════════════════════════════════════════════════════════════════ */}
-        {tab === "requests" && (
+        {tab === "requests" && isClubAdmin && (
           <div className="admin-card">
             <div className="admin-card-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
               <div>
@@ -498,15 +607,17 @@ export default function MyClub() {
         {tab === "ladders" && (
           <>
             {/* ── Create ladder button / form ── */}
-            <div style={{ marginBottom: "1.5rem", display: "flex", justifyContent: "flex-end" }}>
-              <button
-                className="btn-primary"
-                style={{ padding: "9px 22px", fontSize: "0.9rem" }}
-                onClick={() => { setShowCreateForm((v) => !v); setForm(emptyForm); }}
-              >
-                {showCreateForm ? "✕ Annuleren" : "＋ Nieuwe ladder aanmaken"}
-              </button>
-            </div>
+            {isClubAdmin && (
+              <div style={{ marginBottom: "1.5rem", display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  className="btn-primary"
+                  style={{ padding: "9px 22px", fontSize: "0.9rem" }}
+                  onClick={() => { setShowCreateForm((v) => !v); setForm(emptyForm); }}
+                >
+                  {showCreateForm ? "✕ Annuleren" : "＋ Nieuwe ladder aanmaken"}
+                </button>
+              </div>
+            )}
 
             {showCreateForm && (
               <div
@@ -628,7 +739,7 @@ export default function MyClub() {
                 <p style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>Laden…</p>
               ) : ladders.length === 0 ? (
                 <p className="empty-cell" style={{ padding: "2rem" }}>
-                  Nog geen ladders. Maak er één aan via de knop hierboven.
+                  Nog geen ladders. {isClubAdmin && "Maak er één aan via de knop hierboven."}
                 </p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column" }}>

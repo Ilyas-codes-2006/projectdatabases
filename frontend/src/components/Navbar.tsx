@@ -10,7 +10,7 @@ type Notification = {
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { loggedInUser, isAdmin, isClubAdmin, myClubName, logout } = useAuth();
+  const { loggedInUser, isAdmin, myClubName, myClubId, logout } = useAuth();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -108,7 +108,7 @@ export default function Navbar() {
               My Teams
             </button>
 
-            {isClubAdmin ? (
+            {myClubId ? (
               <button
                 className={`nav-btn ${active("/my-club")}`}
                 onClick={() => navigate("/my-club")}
