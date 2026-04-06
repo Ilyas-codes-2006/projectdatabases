@@ -1,19 +1,27 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface CalendarProps {
   showMessage: (text: string, type: "error" | "success") => void;
+  readOnly?: boolean;
 }
 
-export default function Calendar({ showMessage }: CalendarProps) {
+export default function Calendar({
+  showMessage,
+  readOnly = false,
+}: CalendarProps) {
+  const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [availableDates, setAvailableDates] = useState<string[]>([]);
+
   useEffect(() => {
     const fetchAvailability = async () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) return;
 
-        const response = await fetch("http://localhost:5000/api/availability", {
+        // URL aangepast naar /api/availability voor consistentie met de POST request
+        const response = await fetch("/api/availability", {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -55,7 +63,39 @@ export default function Calendar({ showMessage }: CalendarProps) {
     "December",
   ];
 
+  const weekDays = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+
+  const handleDayHeaderClick = (dayIndex: number) => {
+    if (readOnly) return; // Doe niets in de view-only modus
+
+    const targetJsDay = (dayIndex + 1) % 7;
+    const datesToToggle: string[] = [];
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month, d);
+      if (date.getDay() === targetJsDay) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        datesToToggle.push(dateStr);
+      }
+    }
+
+    const allSelected = datesToToggle.every((d) => availableDates.includes(d));
+
+    if (allSelected) {
+      setAvailableDates((prev) =>
+        prev.filter((d) => !datesToToggle.includes(d)),
+      );
+    } else {
+      setAvailableDates((prev) => {
+        const newDates = new Set([...prev, ...datesToToggle]);
+        return Array.from(newDates);
+      });
+    }
+  };
+
   const handleDateClick = (day: number) => {
+    if (readOnly) return;
+
     const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
     setAvailableDates((prev) =>
@@ -113,8 +153,22 @@ export default function Calendar({ showMessage }: CalendarProps) {
       </div>
 
       <div className="calendar-grid">
-        {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((day) => (
-          <div key={day} className="calendar-day-header">
+        {weekDays.map((day, index) => (
+          <div
+            key={day}
+            className="calendar-day-header"
+            onClick={() => handleDayHeaderClick(index)}
+            style={{
+              cursor: readOnly ? "default" : "pointer",
+              userSelect: "none",
+              textDecoration: readOnly ? "none" : "underline",
+              textDecorationColor: "var(--text-muted)",
+              textUnderlineOffset: "4px",
+            }}
+            title={
+              readOnly ? "" : `Selecteer alle ${day} in ${monthNames[month]}`
+            }
+          >
             {day}
           </div>
         ))}
@@ -132,7 +186,8 @@ export default function Calendar({ showMessage }: CalendarProps) {
             <button
               key={day}
               onClick={() => handleDateClick(day)}
-              className={`calendar-day ${isSelected ? "selected" : ""}`}
+              className={`calendar-day ${isSelected ? "selected" : ""} ${readOnly ? "readonly" : ""}`}
+              style={readOnly ? { cursor: "default" } : {}}
             >
               {day}
             </button>
@@ -140,13 +195,23 @@ export default function Calendar({ showMessage }: CalendarProps) {
         })}
       </div>
 
-      <button
-        onClick={saveAvailability}
-        className="btn-submit"
-        style={{ marginTop: "1.5rem" }}
-      >
-        Save Availability
-      </button>
+      {readOnly ? (
+        <button
+          onClick={() => navigate("/availability")}
+          className="btn-submit"
+          style={{ marginTop: "1.5rem" }}
+        >
+          Set your availability
+        </button>
+      ) : (
+        <button
+          onClick={saveAvailability}
+          className="btn-submit"
+          style={{ marginTop: "1.5rem" }}
+        >
+          Save Availability
+        </button>
+      )}
     </div>
   );
 }
