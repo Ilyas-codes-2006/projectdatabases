@@ -103,7 +103,16 @@ DB_NAME=matchup
 JWT_SECRET=your_jwt_secret
 JWT_EXPIRY_HOURS=24
 FLASK_DEBUG=true
+
+MOCEAN_API_KEY=your_mocean_key
+MOCEAN_API_SECRET=your_mocean_secret
+MOCEAN_API_TOKEN=your_mocean_api_token
+MOCEAN_SMS_URL=https://rest.moceanapi.com/rest/2/sms
+MOCEAN_SENDER=MatchUp
 ```
+
+`MOCEAN_API_TOKEN` is preferred for Bearer-token auth. The key/secret pair is
+still supported as a fallback for older credential setups.
 
 ### 4.3 Set up the database
 
@@ -137,6 +146,20 @@ npm run dev
 
 The dev server will be available at **http://localhost:5173**.
 API calls to `/api/*` are automatically proxied to the backend.
+
+### 4.6 Test the SMS API
+
+Once you have an admin JWT, you can test Mocean directly through the backend:
+
+```bash
+curl -X POST http://localhost:5000/api/admin/test-sms \
+  -H "Authorization: Bearer <admin-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"phone_number":"+32470000000","message":"MatchUp SMS test"}'
+```
+
+This endpoint is admin-only and is meant for verifying the SMS integration before
+match reminders are wired to real match data.
 
 ---
 

@@ -1,16 +1,16 @@
 from flask import Flask, jsonify, request, g
-import jwt
 from flask_cors import CORS
 from flask_mail import Mail
 from config import config_data as config
+import sms as sms_service
 from datetime import date
 from db import *
-from auth import register_user, login_user, token_required, mail, request_password_reset, reset_password_with_token, \
+from auth import register_user, login_user, token_required, request_password_reset, reset_password_with_token, \
     admin_required, change_user_email, change_user_name, change_user_birthday
 from teams import show_teams, create_team, join_team
 from email_validator import validate_email, EmailNotValidError
 from clubs import show_clubs, request_new_club, request_join_club, request_join, review_join_request, leave_club, \
-    delete_club, _delete_club_cascade, _auto_delete_if_no_admin
+    delete_club, _auto_delete_if_no_admin
 
 mail = Mail()
 
@@ -289,7 +289,6 @@ def create_app(test_config=None):
         if member:
             member.club_id = new_club_id
         else:
-            from datetime import date
             member = Member(user_id=user_id, club_id=new_club_id, joined_at=date.today())
             db.session.add(member)
 
@@ -328,7 +327,6 @@ def create_app(test_config=None):
                 return jsonify({"error": "Dit team zit al vol (max 2 leden)"}), 400
 
         # Zorg dat member record bestaat
-        from datetime import date
         member = db.session.query(Member).filter_by(user_id=user_id).first()
         if not member:
             if new_team_id is None:
@@ -350,6 +348,30 @@ def create_app(test_config=None):
         except Exception as e:
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/admin/test-sms")
+    @token_required
+    @admin_required
+    def test_sms():
+        data = request.get_json(silent=True) or {}
+        phone_number = (data.get("phone_number") or "").strip()
+        message = (data.get("message") or "").strip()
+        sender = (data.get("sender") or "").strip() or None
+
+        if not phone_number:
+            return jsonify({"error": "phone_number is required"}), 400
+        if not message:
+            return jsonify({"error": "message is required"}), 400
+
+        try:
+            result = sms_service.send_sms(phone_number=phone_number, message=message, sender=sender)
+        except sms_service.MoceanSMSError as exc:
+            return jsonify({"error": str(exc)}), 502
+
+        return jsonify({
+            "message": "SMS sent successfully",
+            "provider_response": result,
+        }), 200
 
     # ---------------------------------------------------------------------------
     # Profile routes
@@ -619,7 +641,7 @@ def create_app(test_config=None):
     @app.post("/api/clubs/request")
     @token_required
     def request_club():
-        import json, base64
+        import base64
         if request.content_type and "multipart/form-data" in request.content_type:
             club_name = (request.form.get("club_name") or "").strip()
             city = (request.form.get("city") or "").strip()

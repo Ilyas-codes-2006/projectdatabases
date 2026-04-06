@@ -28,6 +28,13 @@ config_data['mail_username'] = os.getenv('MAIL_USERNAME', 'matchup.noreply@gmail
 config_data['mail_password'] = os.getenv('MAIL_PASSWORD')
 config_data['mail_sender']   = os.getenv('MAIL_SENDER', 'matchup.noreply@gmail.com')
 
+# Mocean SMS settings
+config_data['mocean_api_token'] = os.getenv('MOCEAN_API_TOKEN', '')
+config_data['mocean_api_key'] = os.getenv('MOCEAN_API_KEY', '')
+config_data['mocean_api_secret'] = os.getenv('MOCEAN_API_SECRET', '')
+config_data['mocean_sms_url'] = os.getenv('MOCEAN_SMS_URL', 'https://rest.moceanapi.com/rest/2/sms')
+config_data['mocean_sender'] = os.getenv('MOCEAN_SENDER', 'MatchUp')
+
 # Frontend URL (used in reset email link)
 config_data['frontend_url'] = os.getenv('FRONTEND_URL', 'http://team5.ua-ppdb.com/')
 
