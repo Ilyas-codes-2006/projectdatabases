@@ -97,34 +97,6 @@ def create_app(test_config=None):
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
 
-    @app.route("/api/auth/forgot-password", methods=["POST"])
-    def forgot_password():
-        data = request.get_json()
-        if not data or 'email' not in data:
-            return jsonify({"error": "E-mailadres is verplicht"}), 400
-
-        request_password_reset(data['email'])
-
-        return jsonify({
-            "message": "Als dit e-mailadres bij ons bekend is, ontvang je binnen enkele minuten een resetlink."
-        }), 200
-
-    @app.route("/api/auth/reset-password", methods=["POST"])
-    def reset_password():
-        data = request.get_json()
-        if not data or 'token' not in data or 'new_password' not in data:
-            return jsonify({"error": "Token en nieuw wachtwoord zijn verplicht"}), 400
-
-        if len(data['new_password']) < 8:
-            return jsonify({"error": "Wachtwoord moet minimaal 8 tekens bevatten"}), 400
-
-        result = reset_password_with_token(data['token'], data['new_password'])
-
-        if result['success']:
-            return jsonify({"message": "Wachtwoord succesvol gewijzigd! Je kunt nu inloggen."}), 200
-        else:
-            return jsonify({"error": result['error']}), 400
-
     # ---------------------------------------------------------------------------
     # Match routes
     # ---------------------------------------------------------------------------
@@ -210,32 +182,6 @@ def create_app(test_config=None):
                 "club_name": club.name if club else None,
             }), 200
         return jsonify({"is_club_admin": False, "club_id": None, "club_name": None}), 200
-
-    @app.get("/api/admin/club-requests/<int:request_id>")
-    @token_required
-    @admin_required
-    def get_club_request_detail(request_id):
-        import json as _json
-        r = db.session.get(ClubRequest, request_id)
-        if not r:
-            return jsonify({"error": "not_found"}), 404
-        user = db.session.get(User, r.user_id)
-        try:
-            attachments = _json.loads(r.attachments) if r.attachments else []
-        except Exception:
-            attachments = []
-        return jsonify({
-            "success": True,
-            "id": r.id,
-            "club_name": r.club_name,
-            "city": r.city,
-            "motivation": r.motivation,
-            "status": r.status,
-            "created_at": r.created_at.isoformat(),
-            "requester_name": f"{user.first_name} {user.last_name}" if user else "?",
-            "requester_email": user.email if user else "?",
-            "attachments": attachments,
-        }), 200
 
     @app.get("/api/clubs/<int:club_id>/members")
     @token_required
@@ -355,46 +301,7 @@ def create_app(test_config=None):
             return jsonify(result), 201
         return jsonify({"error": result.get("error")}), 400
 
-    @app.get("/api/admin/club-requests")
-    @token_required
-    @admin_required
-    def get_club_requests():
-        import json as _json
-        from db import ClubRequest, User
-        requests_q = db.session.query(ClubRequest).order_by(ClubRequest.created_at.desc()).all()
-        result = []
-        for r in requests_q:
-            user = db.session.get(User, r.user_id)
-            try:
-                att_count = len(_json.loads(r.attachments)) if r.attachments else 0
-            except Exception:
-                att_count = 0
-            result.append({
-                "id": r.id,
-                "club_name": r.club_name,
-                "city": r.city,
-                "motivation": r.motivation,
-                "status": r.status,
-                "created_at": r.created_at.isoformat(),
-                "requester_name": f"{user.first_name} {user.last_name}" if user else "?",
-                "requester_email": user.email if user else "?",
-                "attachments_count": att_count,
-            })
-        return jsonify({"success": True, "requests": result}), 200
 
-    @app.post("/api/admin/club-requests/<int:request_id>/review")
-    @token_required
-    @admin_required
-    def review_club_request(request_id):
-        from clubs import review_club_request as do_review
-        data = request.get_json()
-        action = data.get("action")
-        if action not in ("approve", "reject"):
-            return jsonify({"error": "action must be 'approve' or 'reject'"}), 400
-        result = do_review(request_id, action, mail)
-        if result["success"]:
-            return jsonify(result), 200
-        return jsonify({"error": result.get("error")}), 400
 
     @app.post("/api/clubs/<int:club_id>/leave")
     @token_required
@@ -416,17 +323,7 @@ def create_app(test_config=None):
             return jsonify(result), 404
         return jsonify(result), 500
 
-    @app.delete("/api/admin/clubs/<int:club_id>")
-    @token_required
-    @admin_required
-    def admin_delete_club(club_id):
-        user_id = int(g.current_user['sub'])
-        result = delete_club(club_id, user_id, is_site_admin=True)
-        if result["success"]:
-            return jsonify(result), 200
-        if result.get("error") == "club_not_found":
-            return jsonify(result), 404
-        return jsonify(result), 500
+
 
     @app.route("/api/profile/change-email", methods=["PUT"])
     @token_required
