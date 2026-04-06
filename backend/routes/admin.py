@@ -4,7 +4,6 @@ from auth import token_required, admin_required
 from clubs import _auto_delete_if_no_admin, delete_club
 from app import mail
 
-
 admin_bp = Blueprint('admin', __name__)
 
 @admin_bp.route("/users", methods=["GET"])
