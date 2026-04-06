@@ -6,19 +6,23 @@ import MessageBanner from "../components/MessageBanner";
 import courtsBg from "../assets/court.jpeg";
 import Calendar from "../components/Calendar";
 import Ladder from "../components/Ladder";
+import Weather from "../components/Weather";
 
 export default function Home() {
   const navigate = useNavigate();
   const location = useLocation();
   const { loggedInUser } = useAuth();
   const { message, clearMessage, showMessage } = useMessage();
+  const routeMessage = location.state?.message as string | undefined;
+  const routeMessageType =
+    (location.state?.type as "error" | "success" | undefined) ?? "success";
 
   useEffect(() => {
-    if (location.state?.message) {
-      showMessage(location.state.message, location.state.type ?? "success");
-      window.history.replaceState({}, "");
+    if (routeMessage) {
+      showMessage(routeMessage, routeMessageType);
+      navigate(location.pathname, { replace: true });
     }
-  }, [location.state]);
+  }, [routeMessage, routeMessageType, showMessage, navigate, location.pathname]);
 
   return (
     <>
@@ -41,28 +45,29 @@ export default function Home() {
             fellow players — all in one place for your club.
           </p>
 
-          {!loggedInUser ? (
-            <div className="hero-actions">
-              <button
-                className="btn-primary"
-                onClick={() => navigate("/register")}
-              >
-                Get Started
-              </button>
-              <button
-                className="btn-secondary"
-                onClick={() => navigate("/login")}
-              >
-                Sign In
-              </button>
-            </div>
-          ) : (
-            <div className="hero-actions">
-              <button className="btn-primary">Set your availability</button>
-              <button className="btn-secondary">View Schedule</button>
-            </div>
-          )}
-        </div>
+           {!loggedInUser ? (
+             <div className="hero-actions">
+               <button
+                 className="btn-primary"
+                 onClick={() => navigate("/register")}
+               >
+                 Get Started
+               </button>
+               <button
+                 className="btn-secondary"
+                 onClick={() => navigate("/login")}
+               >
+                 Sign In
+               </button>
+             </div>
+           ) : (
+             <div className="hero-actions">
+               <button className="btn-primary">Set your availability</button>
+               <button className="btn-secondary">View Schedule</button>
+             </div>
+           )}
+           <Weather />
+         </div>
         {loggedInUser && (
           <div className="hero-dashboard">
             <div className="hero-ladder">
