@@ -1,5 +1,5 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { vi, describe, it, beforeEach, expect } from "vitest";
 import Teams from "../pages/Teams";
 
 const mockShowMessage = vi.fn();
@@ -28,31 +28,26 @@ describe("Teams page", () => {
     vi.clearAllMocks();
     localStorage.setItem("token", "fake-token");
 
-    vi.stubGlobal("fetch", vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
-      if (typeof url === "string") {
-        if (url === "/api/teams/my-teams") {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({
-              success: true,
-              teams: [
-                {
-                  id: "1",
-                  team_name: "My Team",
-                  ladder_name: "Test Ladder",
-                  is_solo: false,
-                },
-              ],
-            }),
-          } as Response);
-        }
-
-        if (url === "/api/teams" && options?.method === "POST") {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ success: true }),
-          } as Response);
-        }
+    vi.stubGlobal("fetch", vi.fn((url: RequestInfo | URL) => {
+      if (typeof url === "string" && url === "/api/teams/my-teams") {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            success: true,
+            teams: [
+              {
+                team_id: 1,
+                team_name: "My Team",
+                ladder_name: "Test Ladder",
+                team_size: 2,
+                member_count: 2,
+                members: ["Alice", "Bob"],
+                is_solo: false,
+                elo: 100,
+              },
+            ],
+          }),
+        } as Response);
       }
 
       return Promise.resolve({
@@ -62,17 +57,17 @@ describe("Teams page", () => {
     }));
   });
 
-  it("creates a team and shows success message", async () => {
+  it("renders teams and shows Join button", async () => {
     render(<Teams />);
-
-    fireEvent.change(screen.getByPlaceholderText("Team name…"), {
-      target: { value: "My Team" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Create Team" }));
+    
+    expect(screen.getByText("Join a Team")).toBeInTheDocument();
 
     await waitFor(() =>
-      expect(mockShowMessage).toHaveBeenCalledWith("Team created!", "success")
+      expect(screen.queryByText("Loading your teams…")).not.toBeInTheDocument()
     );
+
+    expect(screen.getByText("My Team")).toBeInTheDocument();
+    expect(screen.getByText(/Members: Alice & Bob/)).toBeInTheDocument();
+    expect(screen.getByText(/2\/2 players · ELO: 100/)).toBeInTheDocument();
   });
 });
