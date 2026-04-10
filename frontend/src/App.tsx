@@ -21,6 +21,7 @@ import BadGateway from "./pages/badgateway";
 import ChangeEmail from "./pages/ChangeMail";
 import ChangeName from "./pages/ChangeName";
 import ChangeBirthday from "./pages/ChangeBirthday";
+import Availability from "./pages/Availability";
 
 import "./App.css";
 
@@ -44,6 +45,7 @@ function Layout() {
         <Route path="/teams" element={<Teams />} />
         <Route path="/teams/join" element={<JoinTeams />} />
         <Route path="/clubs" element={<Clubs />} />
+        <Route path="/availability" element={<Availability />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile/change-email" element={<ChangeEmail />} />
         <Route path="/profile/change-name" element={<ChangeName />} />
