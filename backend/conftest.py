@@ -2,7 +2,7 @@ import pytest
 from app import create_app
 from db import db as _db, User,Member, PasswordResetToken, Request
 
-TEST_DB_CONNSTR = "postgresql+psycopg://app:@localhost:5432/matchup_test"
+TEST_DB_CONNSTR = "postgresql+psycopg://app:matchup123@localhost:5432/matchup_test"
 
 
 @pytest.fixture(scope="session")
